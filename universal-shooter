@@ -1,0 +1,1367 @@
+--[[
+    ULTIMATE MULTIHACK SCRIPT FOR ROBLOX
+    ESP + TRIGGER BOT + AIMBOT + GUI
+    Compatible with: Synapse X, KRNL, and other executors
+    
+    ESP Features:
+    - Highlight players through walls
+    - Display player names
+    - Show health bars with color coding
+    - Distance indicator
+    - Filters out teammates (enemies only)
+    - Colored box highlight
+    
+    TRIGGER BOT Features:
+    - Auto-click when hovering over enemy players
+    - Configurable delay
+    
+    AIMBOT Features:
+    - Auto-aim to nearest player
+    - Head lock / Body lock
+    - FOV circle (field of view)
+    - Smoothness control
+    - Wall check (ignores targets behind walls)
+    - Team check (doesn't target teammates)
+    
+    GUI Features:
+    - Full control panel
+    - Toggle all features
+    - Adjust settings in real-time
+    
+    Camera Settings:
+    - Custom FOV (30-120) for zoom effect
+    - Real-time FOV adjustment
+    
+    Controls:
+    - INSERT: Open/Close GUI menu
+--]]
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+-- Variables
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local espEnabled = true
+local espObjects = {}
+
+-- Trigger Bot variables
+local triggerBotEnabled = false
+local mouse = LocalPlayer:GetMouse()
+
+-- Aimbot variables
+local aimbotEnabled = false
+local aimbotTargetPart = "Head" -- Head, HumanoidRootPart, or Torso
+local aimbotSmoothness = 0.2 -- Lower = faster aim (0.1-1.0)
+local aimbotFOV = 200 -- Field of view radius
+local wallCheckEnabled = true -- Check if target is behind walls
+local teamCheckEnabled = true -- Don't target teammates
+local fovCircle = nil
+
+-- Camera FOV variables
+local customFOVEnabled = false
+local customFOV = 70 -- Default Roblox FOV is 70
+local defaultFOV = 70
+
+-- Settings
+local ESP_SETTINGS = {
+    BoxEnabled = true,
+    NameEnabled = true,
+    HealthEnabled = true,
+    DistanceEnabled = true,
+    
+    BoxColor = Color3.fromRGB(255, 255, 255),
+    BoxTransparency = 0.7,
+    
+    TeamCheck = false, -- Set to true to not show teammates
+    MaxDistance = 5000, -- Max distance to show ESP
+    
+    -- Trigger Bot settings
+    TriggerDelay = 0.05, -- Delay between auto-clicks (in seconds)
+}
+
+--[[
+    Check if player is on the same team (MUST BE DEFINED FIRST)
+--]]
+local function isTeammate(player)
+    if not teamCheckEnabled then return false end
+    if not player then return false end
+    
+    -- Check if both players have teams
+    if LocalPlayer.Team and player.Team then
+        -- Same team = teammate
+        return LocalPlayer.Team == player.Team
+    end
+    
+    -- If no teams exist, assume not teammate
+    return false
+end
+
+--[[
+    Get health color based on HP percentage
+--]]
+local function getHealthColor(health, maxHealth)
+    local healthPercent = (health / maxHealth) * 100
+    
+    if healthPercent > 75 then
+        return Color3.fromRGB(0, 255, 0) -- Green
+    elseif healthPercent > 50 then
+        return Color3.fromRGB(255, 255, 0) -- Yellow
+    elseif healthPercent > 25 then
+        return Color3.fromRGB(255, 165, 0) -- Orange
+    else
+        return Color3.fromRGB(255, 0, 0) -- Red
+    end
+end
+
+--[[
+    Create highlight box around player (visible through walls)
+    Only for enemies - teammates are filtered out before this
+--]]
+local function createHighlight(character, player)
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP_Highlight"
+    highlight.FillTransparency = ESP_SETTINGS.BoxTransparency
+    highlight.OutlineTransparency = 0
+    highlight.FillColor = ESP_SETTINGS.BoxColor -- Enemy color
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.Parent = character
+    
+    return highlight
+end
+
+--[[
+    Create overhead ESP display (name, health, distance)
+--]]
+local function createESPLabel(character, player)
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart", 5)
+    if not humanoidRootPart then return nil end
+    
+    -- Create BillboardGui
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP_Billboard"
+    billboard.Adornee = humanoidRootPart
+    billboard.Size = UDim2.new(0, 200, 0, 100)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = CoreGui
+    
+    -- Create frame container
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundTransparency = 1
+    frame.Parent = billboard
+    
+    -- Player name label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0, 20)
+    nameLabel.Position = UDim2.new(0, 0, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = player.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextStrokeTransparency = 0.5
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 14
+    nameLabel.Parent = frame
+    
+    -- Health label
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Name = "HealthLabel"
+    healthLabel.Size = UDim2.new(1, 0, 0, 20)
+    healthLabel.Position = UDim2.new(0, 0, 0, 25)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.Text = "HP: 100"
+    healthLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    healthLabel.TextStrokeTransparency = 0.5
+    healthLabel.Font = Enum.Font.GothamBold
+    healthLabel.TextSize = 12
+    healthLabel.Parent = frame
+    
+    -- Distance label
+    local distanceLabel = Instance.new("TextLabel")
+    distanceLabel.Name = "DistanceLabel"
+    distanceLabel.Size = UDim2.new(1, 0, 0, 20)
+    distanceLabel.Position = UDim2.new(0, 0, 0, 50)
+    distanceLabel.BackgroundTransparency = 1
+    distanceLabel.Text = "0m"
+    distanceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    distanceLabel.TextStrokeTransparency = 0.5
+    distanceLabel.Font = Enum.Font.Gotham
+    distanceLabel.TextSize = 11
+    distanceLabel.Parent = frame
+    
+    return billboard
+end
+
+--[[
+    Update ESP information (health, distance, colors)
+--]]
+local function updateESP(player, espData)
+    if not espData then return end
+    
+    -- Remove ESP if player became teammate
+    if isTeammate(player) then
+        removeESP(player)
+        return
+    end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not humanoidRootPart then return end
+    
+    -- Update health display
+    if espData.billboard then
+        local healthLabel = espData.billboard:FindFirstChild("Frame"):FindFirstChild("HealthLabel")
+        local distanceLabel = espData.billboard:FindFirstChild("Frame"):FindFirstChild("DistanceLabel")
+        
+        if healthLabel then
+            local health = math.floor(humanoid.Health)
+            local maxHealth = math.floor(humanoid.MaxHealth)
+            healthLabel.Text = string.format("HP: %d/%d", health, maxHealth)
+            healthLabel.TextColor3 = getHealthColor(health, maxHealth)
+        end
+        
+        -- Update distance
+        if distanceLabel and LocalPlayer.Character then
+            local localRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if localRoot then
+                local distance = (localRoot.Position - humanoidRootPart.Position).Magnitude
+                distanceLabel.Text = string.format("%dm", math.floor(distance))
+                
+                -- Hide if too far
+                if distance > ESP_SETTINGS.MaxDistance then
+                    espData.billboard.Enabled = false
+                    if espData.highlight then
+                        espData.highlight.Enabled = false
+                    end
+                else
+                    espData.billboard.Enabled = true
+                    if espData.highlight then
+                        espData.highlight.Enabled = true
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Update highlight color based on health
+    if espData.highlight then
+        local healthPercent = (humanoid.Health / humanoid.MaxHealth) * 100
+        espData.highlight.FillColor = getHealthColor(humanoid.Health, humanoid.MaxHealth)
+    end
+end
+
+--[[
+    Create ESP for a player
+--]]
+local function createESP(player)
+    if player == LocalPlayer then return end
+    
+    -- Skip teammates (don't create ESP for them)
+    if isTeammate(player) then return end
+    
+    -- Check if already has ESP
+    if espObjects[player] then
+        removeESP(player)
+    end
+    
+    local character = player.Character
+    if not character then return end
+    
+    -- Create ESP objects
+    local highlight = createHighlight(character, player)
+    local billboard = createESPLabel(character, player)
+    
+    if highlight and billboard then
+        espObjects[player] = {
+            highlight = highlight,
+            billboard = billboard,
+            player = player
+        }
+    end
+end
+
+--[[
+    Remove ESP from a player
+--]]
+function removeESP(player)
+    if espObjects[player] then
+        if espObjects[player].highlight then
+            espObjects[player].highlight:Destroy()
+        end
+        if espObjects[player].billboard then
+            espObjects[player].billboard:Destroy()
+        end
+        espObjects[player] = nil
+    end
+end
+
+--[[
+    Initialize ESP for all current players
+--]]
+local function initializeESP()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            createESP(player)
+        end
+    end
+end
+
+--[[
+    Handle when a player's character is added
+--]]
+local function onCharacterAdded(player, character)
+    if player == LocalPlayer then return end
+    
+    character:WaitForChild("HumanoidRootPart", 10)
+    wait(0.5) -- Wait for character to fully load
+    
+    if espEnabled then
+        createESP(player)
+    end
+end
+
+-- Connect to player events
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        onCharacterAdded(player, character)
+    end)
+    
+    -- If character already exists
+    if player.Character then
+        onCharacterAdded(player, player.Character)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    removeESP(player)
+end)
+
+-- Handle local player respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    wait(1)
+    if espEnabled then
+        initializeESP()
+    end
+end)
+
+-- Update ESP continuously
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then return end
+    
+    for player, espData in pairs(espObjects) do
+        if player and player.Character then
+            updateESP(player, espData)
+        else
+            removeESP(player)
+        end
+    end
+end)
+
+-- Initialize ESP for existing players
+initializeESP()
+
+--[[
+    AIMBOT FOV CIRCLE
+    Visual indicator for aimbot field of view
+--]]
+local function createFOVCircle()
+    -- Check if Drawing API is available
+    local success, result = pcall(function()
+        local circle = Drawing.new("Circle")
+        circle.Thickness = 2
+        circle.NumSides = 50
+        circle.Radius = aimbotFOV
+        circle.Color = Color3.fromRGB(255, 255, 255)
+        circle.Transparency = 0.7
+        circle.Visible = false
+        circle.Filled = false
+        return circle
+    end)
+    
+    if success then
+        return result
+    else
+        warn("[FOV Circle] Drawing API not available on this executor")
+        return nil
+    end
+end
+
+fovCircle = createFOVCircle()
+
+--[[
+    AIMBOT FUNCTIONALITY
+    Auto-aim to nearest player within FOV
+--]]
+
+-- Check if target is visible (not behind walls)
+local function isTargetVisible(targetPart)
+    if not wallCheckEnabled then return true end
+    if not targetPart then return false end
+    
+    local character = LocalPlayer.Character
+    if not character then return false end
+    
+    local origin = Camera.CFrame.Position
+    local direction = (targetPart.Position - origin).Unit
+    local distance = (targetPart.Position - origin).Magnitude
+    
+    -- Create raycast params
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {character, targetPart.Parent}
+    raycastParams.IgnoreWater = true
+    
+    -- Perform raycast
+    local raycastResult = workspace:Raycast(origin, direction * distance, raycastParams)
+    
+    -- If ray hits nothing, target is visible
+    -- If ray hits something, check if it's the target
+    if not raycastResult then
+        return true
+    end
+    
+    -- Check if hit part belongs to target
+    return raycastResult.Instance:IsDescendantOf(targetPart.Parent)
+end
+
+-- Get closest player to crosshair within FOV
+local function getClosestPlayerInFOV()
+    local closestPlayer = nil
+    local shortestDistance = aimbotFOV
+    
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            -- Skip teammates
+            if not isTeammate(player) then
+                local character = player.Character
+                local targetPart = character:FindFirstChild(aimbotTargetPart)
+                
+                if targetPart then
+                    -- Check if target is visible (wall check)
+                    if isTargetVisible(targetPart) then
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                        
+                        if onScreen then
+                            local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                            
+                            if distance < shortestDistance then
+                                closestPlayer = player
+                                shortestDistance = distance
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+-- Aim at target
+local aimbotErrorShown = false
+local function aimAtTarget(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    
+    local targetPart = targetPlayer.Character:FindFirstChild(aimbotTargetPart)
+    if not targetPart then return end
+    
+    local targetPosition = targetPart.Position
+    local cameraPosition = Camera.CFrame.Position
+    
+    -- Calculate smooth aim
+    local targetCFrame = CFrame.new(cameraPosition, targetPosition)
+    
+    -- Apply smoothness with error protection
+    local success, err = pcall(function()
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, aimbotSmoothness)
+    end)
+    
+    if not success and not aimbotErrorShown then
+        warn("[AIMBOT] Camera manipulation failed - may be protected in this game")
+        warn("[AIMBOT] Error: " .. tostring(err))
+        aimbotErrorShown = true
+    end
+end
+
+-- Update FOV circle position
+local function updateFOVCircle()
+    if fovCircle then
+        fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        fovCircle.Radius = aimbotFOV
+        fovCircle.Visible = aimbotEnabled
+    end
+end
+
+--[[
+    CAMERA FOV FUNCTIONS
+    Change camera field of view for zoom effect
+    Aggressive mode to override game FOV locks
+--]]
+local fovConnection = nil
+
+local function applyCameraFOV()
+    if customFOVEnabled then
+        -- Force set FOV multiple times
+        pcall(function()
+            Camera.FieldOfView = customFOV
+        end)
+        
+        -- Create persistent connection if not exists
+        if not fovConnection then
+            fovConnection = RunService.RenderStepped:Connect(function()
+                if customFOVEnabled then
+                    pcall(function()
+                        if Camera.FieldOfView ~= customFOV then
+                            Camera.FieldOfView = customFOV
+                        end
+                    end)
+                end
+            end)
+        end
+    else
+        -- Restore default FOV
+        pcall(function()
+            Camera.FieldOfView = defaultFOV
+        end)
+        
+        -- Disconnect aggressive updates
+        if fovConnection then
+            fovConnection:Disconnect()
+            fovConnection = nil
+        end
+    end
+end
+
+-- No longer needed - integrated into applyCameraFOV
+local function updateCameraFOV()
+    -- Empty function for compatibility
+end
+
+--[[
+    BEAUTIFUL MODERN GUI MENU
+    Full control panel with animations and gradients
+--]]
+
+local MainGui = Instance.new("ScreenGui")
+MainGui.Name = "MultihackGUI"
+MainGui.ResetOnSpawn = false
+MainGui.Parent = CoreGui
+
+-- Main Frame with shadow
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 450, 0, 550)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = MainGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 16)
+MainCorner.Parent = MainFrame
+
+-- Shadow/Stroke effect
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(85, 170, 255)
+MainStroke.Thickness = 2
+MainStroke.Transparency = 0.5
+MainStroke.Parent = MainFrame
+
+-- Gradient overlay
+local GradientOverlay = Instance.new("Frame")
+GradientOverlay.Size = UDim2.new(1, 0, 1, 0)
+GradientOverlay.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+GradientOverlay.BackgroundTransparency = 0.95
+GradientOverlay.BorderSizePixel = 0
+GradientOverlay.Parent = MainFrame
+
+local Gradient = Instance.new("UIGradient")
+Gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 170, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 85, 255))
+}
+Gradient.Rotation = 45
+Gradient.Parent = GradientOverlay
+
+local GradientCorner = Instance.new("UICorner")
+GradientCorner.CornerRadius = UDim.new(0, 16)
+GradientCorner.Parent = GradientOverlay
+
+-- Title Bar with gradient
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 50)
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleGradient = Instance.new("UIGradient")
+TitleGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 170, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 85, 255))
+}
+TitleGradient.Rotation = 90
+TitleGradient.Parent = TitleBar
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 16)
+TitleCorner.Parent = TitleBar
+
+-- Title Label with glow
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -60, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚡ ULTIMATE MULTIHACK"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 20
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
+
+local TitleStroke = Instance.new("UIStroke")
+TitleStroke.Color = Color3.fromRGB(0, 0, 0)
+TitleStroke.Thickness = 2
+TitleStroke.Transparency = 0.5
+TitleStroke.Parent = TitleLabel
+
+-- Version label
+local VersionLabel = Instance.new("TextLabel")
+VersionLabel.Size = UDim2.new(0, 100, 0, 15)
+VersionLabel.Position = UDim2.new(0, 15, 1, -20)
+VersionLabel.BackgroundTransparency = 1
+VersionLabel.Text = "v2.0 PREMIUM"
+VersionLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+VersionLabel.Font = Enum.Font.GothamBold
+VersionLabel.TextSize = 10
+VersionLabel.TextXAlignment = Enum.TextXAlignment.Left
+VersionLabel.Parent = TitleBar
+
+-- Close Button with hover effect
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 35, 0, 35)
+CloseButton.Position = UDim2.new(1, -45, 0, 7.5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+CloseButton.Text = "✕"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 18
+CloseButton.AutoButtonColor = false
+CloseButton.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = CloseButton
+
+local CloseStroke = Instance.new("UIStroke")
+CloseStroke.Color = Color3.fromRGB(255, 255, 255)
+CloseStroke.Thickness = 1.5
+CloseStroke.Transparency = 0.8
+CloseStroke.Parent = CloseButton
+
+-- Close button hover effect
+CloseButton.MouseEnter:Connect(function()
+    TweenService:Create(CloseButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 100, 100)}):Play()
+    TweenService:Create(CloseButton, TweenInfo.new(0.2), {Size = UDim2.new(0, 38, 0, 38)}):Play()
+end)
+CloseButton.MouseLeave:Connect(function()
+    TweenService:Create(CloseButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 60, 60)}):Play()
+    TweenService:Create(CloseButton, TweenInfo.new(0.2), {Size = UDim2.new(0, 35, 0, 35)}):Play()
+end)
+
+-- Scroll Frame for content
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -20, 1, -60)
+ScrollFrame.Position = UDim2.new(0, 10, 0, 50)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 800)
+ScrollFrame.Parent = MainFrame
+
+-- Helper function to create section headers with gradient
+local yOffset = 10
+local function createSection(title)
+    local section = Instance.new("Frame")
+    section.Size = UDim2.new(1, -10, 0, 35)
+    section.Position = UDim2.new(0, 5, 0, yOffset)
+    section.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    section.BorderSizePixel = 0
+    section.Parent = ScrollFrame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = section
+    
+    -- Gradient for section
+    local sectionGradient = Instance.new("UIGradient")
+    sectionGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 120, 200)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 60, 200))
+    }
+    sectionGradient.Rotation = 45
+    sectionGradient.Parent = section
+    
+    -- Glow effect
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(85, 170, 255)
+    stroke.Thickness = 1
+    stroke.Transparency = 0.7
+    stroke.Parent = section
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = title
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 15
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = section
+    
+    local textStroke = Instance.new("UIStroke")
+    textStroke.Color = Color3.fromRGB(0, 0, 0)
+    textStroke.Thickness = 1.5
+    textStroke.Transparency = 0.6
+    textStroke.Parent = label
+    
+    yOffset = yOffset + 45
+    return section
+end
+
+-- Helper function to create beautiful toggle buttons
+local function createToggle(name, defaultState, callback)
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Size = UDim2.new(1, -10, 0, 40)
+    toggleFrame.Position = UDim2.new(0, 5, 0, yOffset)
+    toggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    toggleFrame.BorderSizePixel = 0
+    toggleFrame.Parent = ScrollFrame
+    
+    local frameCorner = Instance.new("UICorner")
+    frameCorner.CornerRadius = UDim.new(0, 10)
+    frameCorner.Parent = toggleFrame
+    
+    local frameStroke = Instance.new("UIStroke")
+    frameStroke.Color = defaultState and Color3.fromRGB(100, 255, 150) or Color3.fromRGB(80, 80, 90)
+    frameStroke.Thickness = 2
+    frameStroke.Transparency = 0.5
+    frameStroke.Parent = toggleFrame
+    
+    local toggle = Instance.new("TextButton")
+    toggle.Size = UDim2.new(1, 0, 1, 0)
+    toggle.BackgroundTransparency = 1
+    toggle.Text = ""
+    toggle.AutoButtonColor = false
+    toggle.Parent = toggleFrame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -80, 1, 0)
+    label.Position = UDim2.new(0, 15, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = toggleFrame
+    
+    -- Toggle switch indicator
+    local indicator = Instance.new("Frame")
+    indicator.Size = UDim2.new(0, 60, 0, 25)
+    indicator.Position = UDim2.new(1, -70, 0.5, -12.5)
+    indicator.BackgroundColor3 = defaultState and Color3.fromRGB(70, 200, 100) or Color3.fromRGB(60, 60, 70)
+    indicator.BorderSizePixel = 0
+    indicator.Parent = toggleFrame
+    
+    local indicatorCorner = Instance.new("UICorner")
+    indicatorCorner.CornerRadius = UDim.new(0, 12)
+    indicatorCorner.Parent = indicator
+    
+    local statusText = Instance.new("TextLabel")
+    statusText.Size = UDim2.new(1, 0, 1, 0)
+    statusText.BackgroundTransparency = 1
+    statusText.Text = defaultState and "ON" or "OFF"
+    statusText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusText.Font = Enum.Font.GothamBold
+    statusText.TextSize = 12
+    statusText.Parent = indicator
+    
+    local state = defaultState
+    
+    -- Click animation and toggle
+    toggle.MouseButton1Click:Connect(function()
+        state = not state
+        
+        -- Animate color change
+        local targetColor = state and Color3.fromRGB(70, 200, 100) or Color3.fromRGB(60, 60, 70)
+        local targetStroke = state and Color3.fromRGB(100, 255, 150) or Color3.fromRGB(80, 80, 90)
+        
+        TweenService:Create(indicator, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {BackgroundColor3 = targetColor}):Play()
+        TweenService:Create(frameStroke, TweenInfo.new(0.3), {Color = targetStroke}):Play()
+        
+        statusText.Text = state and "ON" or "OFF"
+        callback(state)
+        
+        -- Bounce effect
+        TweenService:Create(toggleFrame, TweenInfo.new(0.1), {Size = UDim2.new(1, -5, 0, 42)}):Play()
+        wait(0.1)
+        TweenService:Create(toggleFrame, TweenInfo.new(0.1), {Size = UDim2.new(1, -10, 0, 40)}):Play()
+    end)
+    
+    -- Hover effect
+    toggle.MouseEnter:Connect(function()
+        TweenService:Create(toggleFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 55)}):Play()
+    end)
+    toggle.MouseLeave:Connect(function()
+        TweenService:Create(toggleFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 45)}):Play()
+    end)
+    
+    yOffset = yOffset + 50
+    return toggle
+end
+
+-- Helper function to create beautiful sliders with gradient
+local function createSlider(name, min, max, default, callback)
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Size = UDim2.new(1, -10, 0, 60)
+    sliderFrame.Position = UDim2.new(0, 5, 0, yOffset)
+    sliderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    sliderFrame.BorderSizePixel = 0
+    sliderFrame.Parent = ScrollFrame
+    
+    local frameCorner = Instance.new("UICorner")
+    frameCorner.CornerRadius = UDim.new(0, 10)
+    frameCorner.Parent = sliderFrame
+    
+    local frameStroke = Instance.new("UIStroke")
+    frameStroke.Color = Color3.fromRGB(85, 170, 255)
+    frameStroke.Thickness = 1.5
+    frameStroke.Transparency = 0.7
+    frameStroke.Parent = sliderFrame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.6, 0, 0, 20)
+    label.Position = UDim2.new(0, 15, 0, 8)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = sliderFrame
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0.35, 0, 0, 20)
+    valueLabel.Position = UDim2.new(0.65, 0, 0, 8)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = string.format("%.2f", default)
+    valueLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextSize = 13
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Parent = sliderFrame
+    
+    -- Slider track
+    local sliderTrack = Instance.new("Frame")
+    sliderTrack.Size = UDim2.new(1, -30, 0, 8)
+    sliderTrack.Position = UDim2.new(0, 15, 1, -20)
+    sliderTrack.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    sliderTrack.BorderSizePixel = 0
+    sliderTrack.Parent = sliderFrame
+    
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = sliderTrack
+    
+    -- Slider fill with gradient
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+    fill.BorderSizePixel = 0
+    fill.Parent = sliderTrack
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
+    
+    local fillGradient = Instance.new("UIGradient")
+    fillGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 170, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 85, 255))
+    }
+    fillGradient.Parent = fill
+    
+    -- Slider button (handle)
+    local handle = Instance.new("Frame")
+    handle.Size = UDim2.new(0, 18, 0, 18)
+    handle.Position = UDim2.new((default - min) / (max - min), -9, 0.5, -9)
+    handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    handle.BorderSizePixel = 0
+    handle.ZIndex = 2
+    handle.Parent = sliderTrack
+    
+    local handleCorner = Instance.new("UICorner")
+    handleCorner.CornerRadius = UDim.new(1, 0)
+    handleCorner.Parent = handle
+    
+    local handleStroke = Instance.new("UIStroke")
+    handleStroke.Color = Color3.fromRGB(85, 170, 255)
+    handleStroke.Thickness = 2
+    handleStroke.Parent = handle
+    
+    -- Interaction
+    local slider = Instance.new("TextButton")
+    slider.Size = UDim2.new(1, 0, 1, 0)
+    slider.BackgroundTransparency = 1
+    slider.Text = ""
+    slider.Parent = sliderTrack
+    
+    local dragging = false
+    
+    local function updateSlider(input)
+        local relativePos = math.clamp((input.Position.X - sliderTrack.AbsolutePosition.X) / sliderTrack.AbsoluteSize.X, 0, 1)
+        local value = min + (max - min) * relativePos
+        
+        -- Animate slider movement
+        TweenService:Create(fill, TweenInfo.new(0.1), {Size = UDim2.new(relativePos, 0, 1, 0)}):Play()
+        TweenService:Create(handle, TweenInfo.new(0.1), {Position = UDim2.new(relativePos, -9, 0.5, -9)}):Play()
+        
+        valueLabel.Text = string.format("%.2f", value)
+        callback(value)
+    end
+    
+    slider.MouseButton1Down:Connect(function()
+        dragging = true
+        TweenService:Create(handle, TweenInfo.new(0.1), {Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(handle.Position.X.Scale, -11, 0.5, -11)}):Play()
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+            TweenService:Create(handle, TweenInfo.new(0.1), {Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(handle.Position.X.Scale, -9, 0.5, -9)}):Play()
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateSlider(input)
+        end
+    end)
+    
+    -- Click on track to jump
+    slider.MouseButton1Click:Connect(function()
+        local mousePos = UserInputService:GetMouseLocation()
+        updateSlider({Position = Vector2.new(mousePos.X, mousePos.Y)})
+    end)
+    
+    yOffset = yOffset + 70
+    return sliderFrame
+end
+
+-- ESP Section
+createSection("📦 ESP SETTINGS")
+createToggle("ESP Enabled", espEnabled, function(state)
+    espEnabled = state
+    if not state then
+        for player, _ in pairs(espObjects) do
+            removeESP(player)
+        end
+    else
+        initializeESP()
+    end
+end)
+
+-- Trigger Bot Section
+createSection("🎯 TRIGGER BOT")
+createToggle("Trigger Bot", triggerBotEnabled, function(state)
+    triggerBotEnabled = state
+end)
+createSlider("Trigger Delay", 0.01, 0.5, ESP_SETTINGS.TriggerDelay, function(value)
+    ESP_SETTINGS.TriggerDelay = value
+end)
+
+-- Aimbot Section
+createSection("🔫 AIMBOT")
+local aimbotToggle = createToggle("Aimbot", aimbotEnabled, function(state)
+    aimbotEnabled = state
+    if state then
+        print("[AIMBOT] ✅ Enabled - Targeting nearest player in FOV")
+        print("[AIMBOT] Settings: FOV=" .. aimbotFOV .. ", Smoothness=" .. aimbotSmoothness)
+        print("[AIMBOT] Wall Check: " .. (wallCheckEnabled and "ON" or "OFF"))
+        print("[AIMBOT] Team Check: " .. (teamCheckEnabled and "ON" or "OFF"))
+    else
+        print("[AIMBOT] ❌ Disabled")
+    end
+end)
+createSlider("Smoothness", 0.05, 1.0, aimbotSmoothness, function(value)
+    aimbotSmoothness = value
+end)
+createSlider("FOV Size", 50, 500, aimbotFOV, function(value)
+    aimbotFOV = value
+end)
+createToggle("Wall Check", wallCheckEnabled, function(state)
+    wallCheckEnabled = state
+end)
+createToggle("Team Check", teamCheckEnabled, function(state)
+    teamCheckEnabled = state
+end)
+
+-- Target Part Selector
+local targetFrame = Instance.new("Frame")
+targetFrame.Size = UDim2.new(1, -10, 0, 40)
+targetFrame.Position = UDim2.new(0, 5, 0, yOffset)
+targetFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+targetFrame.BorderSizePixel = 0
+targetFrame.Parent = ScrollFrame
+
+local targetCorner = Instance.new("UICorner")
+targetCorner.CornerRadius = UDim.new(0, 10)
+targetCorner.Parent = targetFrame
+
+local targetStroke = Instance.new("UIStroke")
+targetStroke.Color = Color3.fromRGB(85, 170, 255)
+targetStroke.Thickness = 1.5
+targetStroke.Transparency = 0.7
+targetStroke.Parent = targetFrame
+
+local targetLabel = Instance.new("TextLabel")
+targetLabel.Size = UDim2.new(0.45, 0, 1, 0)
+targetLabel.Position = UDim2.new(0, 15, 0, 0)
+targetLabel.BackgroundTransparency = 1
+targetLabel.Text = "Target Part:"
+targetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+targetLabel.Font = Enum.Font.GothamBold
+targetLabel.TextSize = 13
+targetLabel.TextXAlignment = Enum.TextXAlignment.Left
+targetLabel.Parent = targetFrame
+
+local targetButton = Instance.new("TextButton")
+targetButton.Size = UDim2.new(0.48, 0, 0.7, 0)
+targetButton.Position = UDim2.new(0.5, 0, 0.15, 0)
+targetButton.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+targetButton.Text = aimbotTargetPart
+targetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+targetButton.Font = Enum.Font.GothamBold
+targetButton.TextSize = 12
+targetButton.AutoButtonColor = false
+targetButton.Parent = targetFrame
+
+local targetBtnCorner = Instance.new("UICorner")
+targetBtnCorner.CornerRadius = UDim.new(0, 6)
+targetBtnCorner.Parent = targetButton
+
+local targetGradient = Instance.new("UIGradient")
+targetGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 170, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 85, 255))
+}
+targetGradient.Parent = targetButton
+
+local targetParts = {"Head", "HumanoidRootPart", "Torso"}
+local targetIndex = 1
+targetButton.MouseButton1Click:Connect(function()
+    targetIndex = targetIndex % #targetParts + 1
+    aimbotTargetPart = targetParts[targetIndex]
+    targetButton.Text = aimbotTargetPart
+    
+    -- Click animation
+    TweenService:Create(targetButton, TweenInfo.new(0.1), {Size = UDim2.new(0.5, 0, 0.75, 0)}):Play()
+    wait(0.1)
+    TweenService:Create(targetButton, TweenInfo.new(0.1), {Size = UDim2.new(0.48, 0, 0.7, 0)}):Play()
+end)
+
+targetButton.MouseEnter:Connect(function()
+    TweenService:Create(targetButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 190, 255)}):Play()
+end)
+targetButton.MouseLeave:Connect(function()
+    TweenService:Create(targetButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(85, 170, 255)}):Play()
+end)
+
+yOffset = yOffset + 50
+
+-- Camera FOV Section
+createSection("📷 CAMERA SETTINGS")
+createToggle("Custom FOV", customFOVEnabled, function(state)
+    customFOVEnabled = state
+    applyCameraFOV()
+    if state then
+        print("[CAMERA FOV] ✅ Enabled - FOV set to " .. customFOV)
+    else
+        print("[CAMERA FOV] ❌ Disabled - FOV reset to " .. defaultFOV)
+    end
+end)
+createSlider("FOV Amount", 30, 120, customFOV, function(value)
+    customFOV = value
+    if customFOVEnabled then
+        applyCameraFOV()
+    end
+end)
+
+-- Info Section
+createSection("ℹ️ INFORMATION")
+local infoFrame = Instance.new("Frame")
+infoFrame.Size = UDim2.new(1, -10, 0, 135)
+infoFrame.Position = UDim2.new(0, 5, 0, yOffset)
+infoFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+infoFrame.BorderSizePixel = 0
+infoFrame.Parent = ScrollFrame
+
+local infoFrameCorner = Instance.new("UICorner")
+infoFrameCorner.CornerRadius = UDim.new(0, 10)
+infoFrameCorner.Parent = infoFrame
+
+local infoStroke = Instance.new("UIStroke")
+infoStroke.Color = Color3.fromRGB(85, 170, 255)
+infoStroke.Thickness = 1.5
+infoStroke.Transparency = 0.7
+infoStroke.Parent = infoFrame
+
+local infoGradient = Instance.new("UIGradient")
+infoGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 45)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(45, 35, 55))
+}
+infoGradient.Rotation = 90
+infoGradient.Parent = infoFrame
+
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, -20, 1, -10)
+infoLabel.Position = UDim2.new(0, 10, 0, 5)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "⌨️ INSERT - Toggle Menu\n🖱️ H - Quick Trigger Toggle\n\n🛡️ Team Check protects teammates\n👁️ ESP shows only enemies\n📷 Camera FOV for custom zoom\n\n✨ Made with TweenService\n💎 Premium Edition v2.0"
+infoLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+infoLabel.Font = Enum.Font.Gotham
+infoLabel.TextSize = 11
+infoLabel.TextWrapped = true
+infoLabel.TextYAlignment = Enum.TextYAlignment.Top
+infoLabel.Parent = infoFrame
+
+-- Update canvas size
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 120)
+
+-- Animated gradient for title
+spawn(function()
+    while wait(0.05) do
+        TitleGradient.Rotation = TitleGradient.Rotation + 1
+        if TitleGradient.Rotation >= 360 then
+            TitleGradient.Rotation = 0
+        end
+    end
+end)
+
+-- Close button functionality with animation
+CloseButton.MouseButton1Click:Connect(function()
+    TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0)
+    }):Play()
+    wait(0.3)
+    MainFrame.Visible = false
+    MainFrame.Size = UDim2.new(0, 450, 0, 550)
+    MainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+end)
+
+--[[
+    TRIGGER BOT FUNCTIONALITY
+    Auto-clicks when hovering over a player with H enabled
+--]]
+
+-- Check if mouse is hovering over a player (not teammate)
+local function isHoveringPlayer()
+    local target = mouse.Target
+    if not target then return false end
+    
+    -- Check if target belongs to a player's character
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            -- Skip teammates
+            if not isTeammate(player) then
+                if target:IsDescendantOf(player.Character) then
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Auto click function
+local function autoClick()
+    if not triggerBotEnabled then return end
+    
+    if isHoveringPlayer() then
+        -- Simulate left mouse button click
+        local success = pcall(function()
+            mouse1press()
+            wait(ESP_SETTINGS.TriggerDelay) -- Configurable delay
+            mouse1release()
+        end)
+        
+        if not success then
+            warn("[Trigger Bot] mouse1press/mouse1release not available on this executor")
+        end
+    end
+end
+
+-- Toggle GUI with INSERT key (with beautiful animation)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.Insert then
+        if MainFrame.Visible then
+            -- Close animation
+            TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.new(0.5, 0, 0.5, 0)
+            }):Play()
+            wait(0.3)
+            MainFrame.Visible = false
+            MainFrame.Size = UDim2.new(0, 450, 0, 550)
+            MainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+        else
+            -- Open animation
+            MainFrame.Visible = true
+            MainFrame.Size = UDim2.new(0, 0, 0, 0)
+            MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+            TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 450, 0, 550),
+                Position = UDim2.new(0.5, -225, 0.5, -275)
+            }):Play()
+        end
+    end
+    
+    -- Legacy H key for trigger bot
+    if input.KeyCode == Enum.KeyCode.H then
+        triggerBotEnabled = not triggerBotEnabled
+        print("[TRIGGER BOT] " .. (triggerBotEnabled and "Enabled" or "Disabled"))
+    end
+end)
+
+-- Debug counter for aimbot
+local aimbotDebugCounter = 0
+local aimbotDebugInterval = 300 -- Print every 300 frames (~5 seconds)
+
+-- Main render loop - handles trigger bot, aimbot, and FOV circle
+RunService.RenderStepped:Connect(function()
+    -- Trigger Bot
+    if triggerBotEnabled then
+        autoClick()
+    end
+    
+    -- Aimbot
+    if aimbotEnabled then
+        local target = getClosestPlayerInFOV()
+        if target then
+            aimAtTarget(target)
+            
+            -- Debug output (every 5 seconds)
+            aimbotDebugCounter = aimbotDebugCounter + 1
+            if aimbotDebugCounter >= aimbotDebugInterval then
+                print("[AIMBOT] Targeting: " .. target.Name)
+                aimbotDebugCounter = 0
+            end
+        end
+    end
+    
+    -- Update FOV circle
+    updateFOVCircle()
+    
+    -- Camera FOV updates itself through fovConnection
+end)
+
+-- Beautiful success message
+print("\n")
+print("╔══════════════════════════════════════════════╗")
+print("║   ⚡ ULTIMATE MULTIHACK v2.0 PREMIUM ⚡      ║")
+print("╠══════════════════════════════════════════════╣")
+print("║                                              ║")
+print("║  ✨ Features Loaded:                         ║")
+print("║  📦 ESP - Wallhacks + HP Display            ║")
+print("║  🎯 TRIGGER BOT - Smart Auto-Click          ║")
+print("║  🔫 AIMBOT - FOV + Wall/Team Check          ║")
+print("║  📷 CAMERA FOV - Custom Zoom (30-120)       ║")
+print("║  🎨 BEAUTIFUL GUI - Animated Interface      ║")
+print("║                                              ║")
+print("║  ⌨️  Controls:                               ║")
+print("║  INSERT - Toggle GUI Menu                   ║")
+print("║  H - Quick Trigger Toggle                   ║")
+print("║                                              ║")
+print("║  🛡️  Team Check - Won't target teammates    ║")
+print("║  💎 Premium Edition with TweenService       ║")
+print("║  🌟 Made for Synapse X / KRNL              ║")
+print("╚══════════════════════════════════════════════╝")
+print("\n✅ All systems operational! Press INSERT to begin.\n")
+
+-- Welcome notification
+spawn(function()
+    wait(1)
+    local notification = Instance.new("ScreenGui")
+    notification.Name = "WelcomeNotif"
+    notification.ResetOnSpawn = false
+    notification.Parent = CoreGui
+    
+    local notifFrame = Instance.new("Frame")
+    notifFrame.Size = UDim2.new(0, 350, 0, 80)
+    notifFrame.Position = UDim2.new(0.5, -175, 0, -100)
+    notifFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    notifFrame.BorderSizePixel = 0
+    notifFrame.Parent = notification
+    
+    local notifCorner = Instance.new("UICorner")
+    notifCorner.CornerRadius = UDim.new(0, 12)
+    notifCorner.Parent = notifFrame
+    
+    local notifStroke = Instance.new("UIStroke")
+    notifStroke.Color = Color3.fromRGB(85, 170, 255)
+    notifStroke.Thickness = 2
+    notifStroke.Parent = notifFrame
+    
+    local notifGradient = Instance.new("UIGradient")
+    notifGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 170, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 85, 255))
+    }
+    notifGradient.Rotation = 45
+    notifGradient.Parent = notifStroke
+    
+    local notifText = Instance.new("TextLabel")
+    notifText.Size = UDim2.new(1, -20, 1, -20)
+    notifText.Position = UDim2.new(0, 10, 0, 10)
+    notifText.BackgroundTransparency = 1
+    notifText.Text = "⚡ MULTIHACK LOADED\nPress INSERT to open menu"
+    notifText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    notifText.Font = Enum.Font.GothamBold
+    notifText.TextSize = 16
+    notifText.Parent = notifFrame
+    
+    -- Animate in
+    TweenService:Create(notifFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, -175, 0, 20)
+    }):Play()
+    
+    -- Wait and animate out
+    wait(4)
+    TweenService:Create(notifFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+        Position = UDim2.new(0.5, -175, 0, -100)
+    }):Play()
+    
+    wait(0.5)
+    notification:Destroy()
+end)
