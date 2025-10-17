@@ -1,6 +1,6 @@
 --[[
     ULTIMATE MULTIHACK SCRIPT FOR ROBLOX
-    ESP + TRIGGER BOT + AIMBOT + GUI
+    ESP + TRIGGER BOT + AIMBOT + SILENT AIM + BULLET DODGE + GUI
     Compatible with: Synapse X, KRNL, and other executors
     
     ESP Features:
@@ -18,10 +18,25 @@
     AIMBOT Features:
     - Auto-aim to nearest player
     - Head lock / Body lock
-    - FOV circle (field of view)
+    - FOV circle (field of view) - up to 360°
+    - Quick FOV presets (180°, 270°, 360°)
     - Smoothness control
     - Wall check (ignores targets behind walls)
     - Team check (doesn't target teammates)
+    
+    SILENT AIM Features (360° Shoot):
+    - Shoot enemies in any direction
+    - No need to aim at target
+    - Adjustable hit chance (0-100%)
+    - Auto Shoot - automatically fires at targets
+    - Adjustable fire rate (0.05-1.0 sec)
+    - Works with wall check and team check
+    
+    BULLET DODGE Features:
+    - Automatically dodge incoming bullets
+    - Matrix-style evasion
+    - Adjustable detection range (5-50 studs)
+    - Customizable dodge speed
     
     GUI Features:
     - Full control panel
@@ -57,7 +72,7 @@ local mouse = LocalPlayer:GetMouse()
 local aimbotEnabled = false
 local aimbotTargetPart = "Head" -- Head, HumanoidRootPart, or Torso
 local aimbotSmoothness = 0.2 -- Lower = faster aim (0.1-1.0)
-local aimbotFOV = 200 -- Field of view radius
+local aimbotFOV = 200 -- Field of view radius (50-3000, use 2000+ for 360°)
 local wallCheckEnabled = true -- Check if target is behind walls
 local teamCheckEnabled = true -- Don't target teammates
 local fovCircle = nil
@@ -66,6 +81,17 @@ local fovCircle = nil
 local customFOVEnabled = false
 local customFOV = 70 -- Default Roblox FOV is 70
 local defaultFOV = 70
+
+-- 360° Shoot variables
+local silentAimEnabled = false
+local silentAimHitChance = 100 -- Percentage (0-100)
+local autoShootEnabled = false -- Auto fire when target in range
+local autoShootDelay = 0.1 -- Delay between shots
+
+-- Bullet Dodge variables
+local bulletDodgeEnabled = false
+local dodgeDistance = 10 -- Distance to detect bullets
+local dodgeSpeed = 2 -- Speed multiplier for dodge
 
 -- Settings
 local ESP_SETTINGS = {
@@ -218,6 +244,12 @@ local function updateESP(player, espData)
     
     if not humanoid or not humanoidRootPart then return end
     
+    -- Remove ESP if player died
+    if humanoid.Health <= 0 then
+        removeESP(player)
+        return
+    end
+    
     -- Update health display
     if espData.billboard then
         local healthLabel = espData.billboard:FindFirstChild("Frame"):FindFirstChild("HealthLabel")
@@ -276,6 +308,11 @@ local function createESP(player)
     
     local character = player.Character
     if not character then return end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    
+    -- Skip dead players (corpses)
+    if not humanoid or humanoid.Health <= 0 then return end
     
     -- Create ESP objects
     local highlight = createHighlight(character, player)
@@ -446,19 +483,24 @@ local function getClosestPlayerInFOV()
             -- Skip teammates
             if not isTeammate(player) then
                 local character = player.Character
-                local targetPart = character:FindFirstChild(aimbotTargetPart)
+                local humanoid = character:FindFirstChild("Humanoid")
                 
-                if targetPart then
-                    -- Check if target is visible (wall check)
-                    if isTargetVisible(targetPart) then
-                        local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-                        
-                        if onScreen then
-                            local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                -- Skip dead players (corpses)
+                if humanoid and humanoid.Health > 0 then
+                    local targetPart = character:FindFirstChild(aimbotTargetPart)
+                    
+                    if targetPart then
+                        -- Check if target is visible (wall check)
+                        if isTargetVisible(targetPart) then
+                            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
                             
-                            if distance < shortestDistance then
-                                closestPlayer = player
-                                shortestDistance = distance
+                            if onScreen then
+                                local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                                
+                                if distance < shortestDistance then
+                                    closestPlayer = player
+                                    shortestDistance = distance
+                                end
                             end
                         end
                     end
@@ -548,6 +590,220 @@ end
 -- No longer needed - integrated into applyCameraFOV
 local function updateCameraFOV()
     -- Empty function for compatibility
+end
+
+--[[
+    360° SILENT AIM
+    Shoots at enemies in any direction without turning camera
+--]]
+
+local function getSilentAimTarget()
+    if not silentAimEnabled then return nil end
+    
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and not isTeammate(player) then
+            local character = player.Character
+            local humanoid = character:FindFirstChild("Humanoid")
+            
+            -- Skip dead players (corpses)
+            if humanoid and humanoid.Health > 0 then
+                local targetPart = character:FindFirstChild(aimbotTargetPart)
+                
+                if targetPart then
+                    -- Wall check
+                    if wallCheckEnabled then
+                        if not isTargetVisible(targetPart) then
+                            continue
+                        end
+                    end
+                    
+                    -- Calculate distance
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        local distance = (LocalPlayer.Character.HumanoidRootPart.Position - targetPart.Position).Magnitude
+                        
+                        -- Hit chance calculation
+                        local hitRoll = math.random(1, 100)
+                        if hitRoll <= silentAimHitChance then
+                            if distance < shortestDistance then
+                                closestPlayer = player
+                                shortestDistance = distance
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+-- Hook into mouse clicks for silent aim (if executor supports it)
+if hookmetamethod and getnamecallmethod then
+    local hookSuccess = pcall(function()
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+            
+            if silentAimEnabled and method == "FireServer" and (self.Name == "ShootEvent" or self.Name == "Fire" or self.Name == "RemoteEvent") then
+                local target = getSilentAimTarget()
+                if target and target.Character then
+                    local targetPart = target.Character:FindFirstChild(aimbotTargetPart)
+                    if targetPart then
+                        -- Modify shot direction to target
+                        args[1] = targetPart.Position
+                        return oldNamecall(self, unpack(args))
+                    end
+                end
+            end
+            
+            return oldNamecall(self, ...)
+        end)
+    end)
+    
+    if hookSuccess then
+        print("[SILENT AIM] ✅ Hook installed successfully")
+    else
+        warn("[SILENT AIM] ⚠️ Hook failed - Silent Aim may not work on this game")
+    end
+else
+    warn("[SILENT AIM] ⚠️ Executor doesn't support hookmetamethod - Silent Aim disabled")
+end
+
+--[[
+    AUTO SHOOT SYSTEM
+    Automatically shoots when target is found
+--]]
+
+local lastShootTime = 0
+
+local function autoShoot()
+    if not autoShootEnabled then return end
+    if tick() - lastShootTime < autoShootDelay then return end
+    
+    local target = getSilentAimTarget()
+    if target then
+        -- Simulate mouse click to shoot
+        local shootSuccess = pcall(function()
+            mouse1click()
+        end)
+        
+        if not shootSuccess then
+            -- Fallback method
+            pcall(function()
+                mouse1press()
+                wait(0.05)
+                mouse1release()
+            end)
+        end
+        
+        lastShootTime = tick()
+        print("[AUTO SHOOT] 🔫 Fired at " .. target.Name)
+    end
+end
+
+--[[
+    BULLET DODGE SYSTEM
+    Automatically dodges incoming bullets and projectiles
+--]]
+
+local activeBullets = {}
+local lastDodgeTime = 0
+local dodgeCooldown = 0.5 -- Seconds between dodges
+
+-- Detect bullets in workspace
+local function detectBullets()
+    activeBullets = {}
+    
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Part") or obj:IsA("BasePart") then
+            -- Common bullet identifiers
+            if obj.Name:lower():find("bullet") or 
+               obj.Name:lower():find("projectile") or
+               obj.Name:lower():find("shot") or
+               (obj.Velocity and obj.Velocity.Magnitude > 50) then
+                table.insert(activeBullets, obj)
+            end
+        end
+    end
+end
+
+-- Calculate dodge direction
+local function calculateDodgeDirection(bulletPosition, bulletVelocity)
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    
+    local rootPart = LocalPlayer.Character.HumanoidRootPart
+    local playerPos = rootPart.Position
+    
+    -- Calculate if bullet is heading towards player
+    local toBullet = (bulletPosition - playerPos)
+    local bulletDir = bulletVelocity.Unit
+    
+    -- Get perpendicular dodge direction
+    local dodgeDir = Vector3.new(-bulletDir.Z, 0, bulletDir.X).Unit
+    
+    -- Random left/right
+    if math.random() > 0.5 then
+        dodgeDir = -dodgeDir
+    end
+    
+    return dodgeDir
+end
+
+-- Execute dodge movement
+local function performDodge()
+    if not bulletDodgeEnabled then return end
+    if tick() - lastDodgeTime < dodgeCooldown then return end
+    
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+    
+    local rootPart = LocalPlayer.Character.HumanoidRootPart
+    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+    
+    if not humanoid then return end
+    
+    detectBullets()
+    
+    for _, bullet in pairs(activeBullets) do
+        if bullet and bullet.Parent then
+            local bulletPos = bullet.Position
+            local bulletVel = bullet.AssemblyLinearVelocity or bullet.Velocity or Vector3.new(0, 0, 0)
+            
+            local distance = (bulletPos - rootPart.Position).Magnitude
+            
+            -- Check if bullet is close and moving towards player
+            if distance < dodgeDistance then
+                local toBullet = (bulletPos - rootPart.Position).Unit
+                local bulletDir = bulletVel.Unit
+                
+                -- Dot product to check if bullet is coming at us
+                local dotProduct = toBullet:Dot(bulletDir)
+                
+                if dotProduct < -0.5 then -- Bullet heading towards us
+                    local dodgeDir = calculateDodgeDirection(bulletPos, bulletVel)
+                    
+                    if dodgeDir then
+                        -- Apply dodge velocity
+                        pcall(function()
+                            rootPart.AssemblyLinearVelocity = dodgeDir * (humanoid.WalkSpeed * dodgeSpeed)
+                        end)
+                        
+                        lastDodgeTime = tick()
+                        print("[BULLET DODGE] 🚀 Dodged bullet!")
+                        break
+                    end
+                end
+            end
+        end
+    end
 end
 
 --[[
@@ -1012,9 +1268,70 @@ end)
 createSlider("Smoothness", 0.05, 1.0, aimbotSmoothness, function(value)
     aimbotSmoothness = value
 end)
-createSlider("FOV Size", 50, 500, aimbotFOV, function(value)
+createSlider("FOV Size", 50, 3000, aimbotFOV, function(value)
     aimbotFOV = value
 end)
+
+-- FOV Quick Presets
+local fovPresetFrame = Instance.new("Frame")
+fovPresetFrame.Size = UDim2.new(1, -10, 0, 35)
+fovPresetFrame.Position = UDim2.new(0, 5, 0, yOffset)
+fovPresetFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+fovPresetFrame.BorderSizePixel = 0
+fovPresetFrame.Parent = ScrollFrame
+
+local fovPresetCorner = Instance.new("UICorner")
+fovPresetCorner.CornerRadius = UDim.new(0, 8)
+fovPresetCorner.Parent = fovPresetFrame
+
+local fovPresets = {
+    {name = "180°", value = 800},
+    {name = "270°", value = 1500},
+    {name = "360°", value = 3000}
+}
+
+for i, preset in ipairs(fovPresets) do
+    local presetBtn = Instance.new("TextButton")
+    presetBtn.Size = UDim2.new(0.3, -5, 0, 25)
+    presetBtn.Position = UDim2.new((i-1) * 0.33, 5, 0, 5)
+    presetBtn.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
+    presetBtn.Text = preset.name
+    presetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    presetBtn.Font = Enum.Font.GothamBold
+    presetBtn.TextSize = 11
+    presetBtn.AutoButtonColor = false
+    presetBtn.Parent = fovPresetFrame
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 5)
+    btnCorner.Parent = presetBtn
+    
+    local btnGradient = Instance.new("UIGradient")
+    btnGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 170, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 85, 255))
+    }
+    btnGradient.Parent = presetBtn
+    
+    presetBtn.MouseButton1Click:Connect(function()
+        aimbotFOV = preset.value
+        print("[AIMBOT FOV] Set to " .. preset.name .. " (" .. preset.value .. ")")
+        
+        TweenService:Create(presetBtn, TweenInfo.new(0.1), {Size = UDim2.new(0.3, -5, 0, 28)}):Play()
+        wait(0.1)
+        TweenService:Create(presetBtn, TweenInfo.new(0.1), {Size = UDim2.new(0.3, -5, 0, 25)}):Play()
+    end)
+    
+    presetBtn.MouseEnter:Connect(function()
+        TweenService:Create(presetBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 190, 255)}):Play()
+    end)
+    presetBtn.MouseLeave:Connect(function()
+        TweenService:Create(presetBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(85, 170, 255)}):Play()
+    end)
+end
+
+yOffset = yOffset + 45
+
 createToggle("Wall Check", wallCheckEnabled, function(state)
     wallCheckEnabled = state
 end)
@@ -1113,10 +1430,55 @@ createSlider("FOV Amount", 30, 120, customFOV, function(value)
     end
 end)
 
+-- 360 Shoot Section
+createSection("🎯 SILENT AIM (360°)")
+createToggle("Silent Aim", silentAimEnabled, function(state)
+    silentAimEnabled = state
+    if state then
+        print("[SILENT AIM] ✅ Enabled - Shoots in any direction!")
+        print("[SILENT AIM] You can hit enemies without aiming at them")
+    else
+        print("[SILENT AIM] ❌ Disabled")
+    end
+end)
+createSlider("Hit Chance %", 0, 100, silentAimHitChance, function(value)
+    silentAimHitChance = value
+end)
+createToggle("Auto Shoot", autoShootEnabled, function(state)
+    autoShootEnabled = state
+    if state then
+        print("[AUTO SHOOT] ✅ Enabled - Automatic firing!")
+        print("[AUTO SHOOT] Will shoot automatically at targets")
+    else
+        print("[AUTO SHOOT] ❌ Disabled")
+    end
+end)
+createSlider("Fire Rate", 0.05, 1.0, autoShootDelay, function(value)
+    autoShootDelay = value
+end)
+
+-- Bullet Dodge Section
+createSection("🚀 BULLET DODGE")
+createToggle("Auto Dodge", bulletDodgeEnabled, function(state)
+    bulletDodgeEnabled = state
+    if state then
+        print("[BULLET DODGE] ✅ Enabled - Matrix mode activated!")
+        print("[BULLET DODGE] Automatically dodging incoming bullets")
+    else
+        print("[BULLET DODGE] ❌ Disabled")
+    end
+end)
+createSlider("Detection Range", 5, 50, dodgeDistance, function(value)
+    dodgeDistance = value
+end)
+createSlider("Dodge Speed", 1, 5, dodgeSpeed, function(value)
+    dodgeSpeed = value
+end)
+
 -- Info Section
 createSection("ℹ️ INFORMATION")
 local infoFrame = Instance.new("Frame")
-infoFrame.Size = UDim2.new(1, -10, 0, 135)
+infoFrame.Size = UDim2.new(1, -10, 0, 165)
 infoFrame.Position = UDim2.new(0, 5, 0, yOffset)
 infoFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 infoFrame.BorderSizePixel = 0
@@ -1144,7 +1506,7 @@ local infoLabel = Instance.new("TextLabel")
 infoLabel.Size = UDim2.new(1, -20, 1, -10)
 infoLabel.Position = UDim2.new(0, 10, 0, 5)
 infoLabel.BackgroundTransparency = 1
-infoLabel.Text = "⌨️ INSERT - Toggle Menu\n🖱️ H - Quick Trigger Toggle\n\n🛡️ Team Check protects teammates\n👁️ ESP shows only enemies\n📷 Camera FOV for custom zoom\n\n✨ Made with TweenService\n💎 Premium Edition v2.0"
+infoLabel.Text = "⌨️ INSERT - Toggle Menu\n🖱️ H - Quick Trigger Toggle\n\n🛡️ Team Check protects teammates\n👁️ ESP shows only enemies\n🎯 Aimbot FOV up to 360°\n⚡ Silent Aim + Auto Shoot\n🚀 Bullet Dodge - Auto evade\n📷 Camera FOV for custom zoom\n\n✨ Made with TweenService\n💎 Premium Edition v2.0"
 infoLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
 infoLabel.Font = Enum.Font.Gotham
 infoLabel.TextSize = 11
@@ -1192,8 +1554,13 @@ local function isHoveringPlayer()
         if player ~= LocalPlayer and player.Character then
             -- Skip teammates
             if not isTeammate(player) then
-                if target:IsDescendantOf(player.Character) then
-                    return true
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                
+                -- Skip dead players (corpses)
+                if humanoid and humanoid.Health > 0 then
+                    if target:IsDescendantOf(player.Character) then
+                        return true
+                    end
                 end
             end
         end
@@ -1283,6 +1650,12 @@ RunService.RenderStepped:Connect(function()
     -- Update FOV circle
     updateFOVCircle()
     
+    -- Auto Shoot System (360° shooting)
+    autoShoot()
+    
+    -- Bullet Dodge System
+    performDodge()
+    
     -- Camera FOV updates itself through fovConnection
 end)
 
@@ -1295,7 +1668,9 @@ print("║                                              ║")
 print("║  ✨ Features Loaded:                         ║")
 print("║  📦 ESP - Wallhacks + HP Display            ║")
 print("║  🎯 TRIGGER BOT - Smart Auto-Click          ║")
-print("║  🔫 AIMBOT - FOV + Wall/Team Check          ║")
+print("║  🔫 AIMBOT - FOV up to 360° + Presets       ║")
+print("║  ⚡ SILENT AIM + AUTO SHOOT - 360°          ║")
+print("║  🚀 BULLET DODGE - Matrix Mode              ║")
 print("║  📷 CAMERA FOV - Custom Zoom (30-120)       ║")
 print("║  🎨 BEAUTIFUL GUI - Animated Interface      ║")
 print("║                                              ║")
