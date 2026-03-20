@@ -101,6 +101,10 @@ local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+
+-- Configuration Registry for UI Sync
+_G.ConfigRegistry = {}
 
 -- Variables
 local LocalPlayer = Players.LocalPlayer
@@ -1155,80 +1159,80 @@ local originalLighting = {
 local themes = {
     ["Cyberpunk"] = {
         name = "🌃 Cyberpunk",
-        ambient = Color3.fromRGB(100, 50, 150),
-        outdoorAmbient = Color3.fromRGB(50, 100, 200),
-        brightness = 2,
+        ambient = Color3.fromRGB(50, 20, 80),
+        outdoorAmbient = Color3.fromRGB(20, 50, 100),
+        brightness = 1.25,
         colorShiftTop = Color3.fromRGB(255, 0, 255),
         colorShiftBottom = Color3.fromRGB(0, 255, 255),
-        fogColor = Color3.fromRGB(100, 0, 150),
-        fogEnd = 500,
-        bloomIntensity = 1,
-        bloomSize = 40
+        fogColor = Color3.fromRGB(50, 0, 80),
+        fogEnd = 600,
+        bloomIntensity = 0.5,
+        bloomSize = 30
     },
     
     ["Neon"] = {
         name = "💜 Neon Dreams",
-        ambient = Color3.fromRGB(150, 0, 255),
-        outdoorAmbient = Color3.fromRGB(255, 0, 150),
-        brightness = 3,
+        ambient = Color3.fromRGB(80, 0, 150),
+        outdoorAmbient = Color3.fromRGB(150, 0, 80),
+        brightness = 1.3,
         colorShiftTop = Color3.fromRGB(255, 100, 255),
         colorShiftBottom = Color3.fromRGB(100, 255, 255),
-        fogColor = Color3.fromRGB(200, 0, 200),
-        fogEnd = 300,
-        bloomIntensity = 1.5,
-        bloomSize = 50
+        fogColor = Color3.fromRGB(100, 0, 100),
+        fogEnd = 400,
+        bloomIntensity = 0.6,
+        bloomSize = 40
     },
     
     ["Sunset"] = {
         name = "🌅 Sunset Vibes",
-        ambient = Color3.fromRGB(255, 150, 50),
-        outdoorAmbient = Color3.fromRGB(255, 100, 100),
-        brightness = 2.5,
+        ambient = Color3.fromRGB(150, 80, 30),
+        outdoorAmbient = Color3.fromRGB(150, 50, 50),
+        brightness = 1.2,
         colorShiftTop = Color3.fromRGB(255, 200, 100),
         colorShiftBottom = Color3.fromRGB(255, 100, 150),
-        fogColor = Color3.fromRGB(255, 150, 100),
-        fogEnd = 800,
-        bloomIntensity = 0.8,
-        bloomSize = 30
+        fogColor = Color3.fromRGB(150, 80, 50),
+        fogEnd = 1000,
+        bloomIntensity = 0.4,
+        bloomSize = 25
     },
     
     ["Matrix"] = {
         name = "💚 Matrix",
-        ambient = Color3.fromRGB(0, 100, 0),
-        outdoorAmbient = Color3.fromRGB(0, 150, 0),
-        brightness = 1.5,
+        ambient = Color3.fromRGB(0, 50, 0),
+        outdoorAmbient = Color3.fromRGB(0, 80, 0),
+        brightness = 1.1,
         colorShiftTop = Color3.fromRGB(0, 255, 0),
-        colorShiftBottom = Color3.fromRGB(0, 200, 0),
-        fogColor = Color3.fromRGB(0, 100, 0),
-        fogEnd = 400,
-        bloomIntensity = 1.2,
-        bloomSize = 35
+        colorShiftBottom = Color3.fromRGB(0, 180, 0),
+        fogColor = Color3.fromRGB(0, 60, 0),
+        fogEnd = 500,
+        bloomIntensity = 0.6,
+        bloomSize = 30
     },
     
     ["Hell"] = {
         name = "🔥 Hell Fire",
-        ambient = Color3.fromRGB(150, 0, 0),
-        outdoorAmbient = Color3.fromRGB(200, 50, 0),
-        brightness = 2,
-        colorShiftTop = Color3.fromRGB(255, 100, 0),
+        ambient = Color3.fromRGB(80, 0, 0),
+        outdoorAmbient = Color3.fromRGB(100, 30, 0),
+        brightness = 1.2,
+        colorShiftTop = Color3.fromRGB(255, 80, 0),
         colorShiftBottom = Color3.fromRGB(255, 0, 0),
-        fogColor = Color3.fromRGB(150, 0, 0),
-        fogEnd = 200,
-        bloomIntensity = 2,
-        bloomSize = 60
+        fogColor = Color3.fromRGB(80, 0, 0),
+        fogEnd = 300,
+        bloomIntensity = 0.8,
+        bloomSize = 45
     },
     
     ["Ice"] = {
         name = "❄️ Ice World",
-        ambient = Color3.fromRGB(100, 150, 255),
-        outdoorAmbient = Color3.fromRGB(150, 200, 255),
-        brightness = 2.5,
+        ambient = Color3.fromRGB(50, 80, 150),
+        outdoorAmbient = Color3.fromRGB(80, 100, 150),
+        brightness = 1.2,
         colorShiftTop = Color3.fromRGB(200, 220, 255),
         colorShiftBottom = Color3.fromRGB(100, 200, 255),
-        fogColor = Color3.fromRGB(200, 230, 255),
-        fogEnd = 600,
-        bloomIntensity = 0.6,
-        bloomSize = 25
+        fogColor = Color3.fromRGB(100, 130, 180),
+        fogEnd = 800,
+        bloomIntensity = 0.3,
+        bloomSize = 20
     },
     
     ["Rainbow"] = {
@@ -1246,18 +1250,18 @@ local themes = {
 -- Bloom Effect (свечение)
 local bloom = Instance.new("BloomEffect")
 bloom.Name = "CustomBloom"
-bloom.Intensity = 1
-bloom.Size = 40
-bloom.Threshold = 0.8
+bloom.Intensity = 0.5
+bloom.Size = 25
+bloom.Threshold = 2.5
 bloom.Enabled = true
 bloom.Parent = Lighting
 
 -- Color Correction (коррекция цветов)
 local colorCorrection = Instance.new("ColorCorrectionEffect")
 colorCorrection.Name = "CustomColorCorrection"
-colorCorrection.Brightness = 0.05
-colorCorrection.Contrast = 0.1
-colorCorrection.Saturation = 0.2
+colorCorrection.Brightness = 0
+colorCorrection.Contrast = 0.15
+colorCorrection.Saturation = 0.25
 colorCorrection.TintColor = Color3.fromRGB(255, 255, 255)
 colorCorrection.Enabled = true
 colorCorrection.Parent = Lighting
@@ -1564,6 +1568,131 @@ print("📌 Используй _G.WorldVisuals для управления")
 end -- End World Visuals Scope
 -- ============================================
 
+-- [[ CONFIGURATION MANAGEMENT ]]
+function saveConfig()
+    local config = {
+        -- Aimbot
+        aimbotEnabled = aimbotEnabled,
+        triggerBotEnabled = triggerBotEnabled,
+        aimbotSmoothness = aimbotSmoothness,
+        aimbotFOV = aimbotFOV,
+        aimbotMode = aimbotMode,
+        wallCheckEnabled = wallCheckEnabled,
+        teamCheckEnabled = teamCheckEnabled,
+        predictionEnabled = predictionEnabled,
+        predictionMultiplier = predictionMultiplier,
+        aimbotAutoShoot = aimbotAutoShoot,
+        silentAimEnabled = silentAimEnabled,
+        silentAimHitChance = silentAimHitChance,
+        
+        -- Visuals
+        espEnabled = espEnabled,
+        skeletonEnabled = ESP_SETTINGS.SkeletonEnabled,
+        chamsEnabled = _G.chamsEnabled,
+        tracersEnabled = tracersEnabled,
+        crosshairEnabled = crosshairEnabled,
+        glowEnabled = glowEnabled,
+        
+        -- Misc
+        speedMultiplier = speedMultiplier,
+        bulletDodgeEnabled = bulletDodgeEnabled,
+        noclipEnabled = noclipEnabled,
+        infJumpEnabled = infJumpEnabled,
+        
+        -- Settings
+        rainbowEnabled = rainbowEnabled
+    }
+    
+    local success, err = pcall(function()
+        writefile("MultihackConfig.json", HttpService:JSONEncode(config))
+    end)
+    
+    if success then
+        -- print("[CONFIG] 💾 Configuration saved successfully")
+    else
+        warn("[CONFIG] ❌ Failed to save: " .. tostring(err))
+    end
+end
+
+function loadConfig()
+    local success, content = pcall(function()
+        return readfile("MultihackConfig.json")
+    end)
+    
+    if success then
+        local config = HttpService:JSONDecode(content)
+        
+        -- Update variables
+        if config.aimbotEnabled ~= nil then aimbotEnabled = config.aimbotEnabled end
+        if config.triggerBotEnabled ~= nil then triggerBotEnabled = config.triggerBotEnabled end
+        if config.aimbotSmoothness ~= nil then aimbotSmoothness = config.aimbotSmoothness end
+        if config.aimbotFOV ~= nil then aimbotFOV = config.aimbotFOV end
+        if config.aimbotMode ~= nil then aimbotMode = config.aimbotMode end
+        if config.wallCheckEnabled ~= nil then wallCheckEnabled = config.wallCheckEnabled end
+        if config.teamCheckEnabled ~= nil then teamCheckEnabled = config.teamCheckEnabled end
+        if config.predictionEnabled ~= nil then predictionEnabled = config.predictionEnabled end
+        if config.predictionMultiplier ~= nil then predictionMultiplier = config.predictionMultiplier end
+        if config.aimbotAutoShoot ~= nil then aimbotAutoShoot = config.aimbotAutoShoot end
+        if config.silentAimEnabled ~= nil then silentAimEnabled = config.silentAimEnabled end
+        if config.silentAimHitChance ~= nil then silentAimHitChance = config.silentAimHitChance end
+        
+        if config.espEnabled ~= nil then espEnabled = config.espEnabled end
+        if config.skeletonEnabled ~= nil then ESP_SETTINGS.SkeletonEnabled = config.skeletonEnabled end
+        if config.chamsEnabled ~= nil then _G.chamsEnabled = config.chamsEnabled end
+        if config.tracersEnabled ~= nil then tracersEnabled = config.tracersEnabled end
+        if config.crosshairEnabled ~= nil then crosshairEnabled = config.crosshairEnabled end
+        if config.glowEnabled ~= nil then glowEnabled = config.glowEnabled end
+        
+        if config.speedMultiplier ~= nil then speedMultiplier = config.speedMultiplier end
+        if config.bulletDodgeEnabled ~= nil then bulletDodgeEnabled = config.bulletDodgeEnabled end
+        if config.noclipEnabled ~= nil then noclipEnabled = config.noclipEnabled end
+        if config.infJumpEnabled ~= nil then infJumpEnabled = config.infJumpEnabled end
+        if config.rainbowEnabled ~= nil then rainbowEnabled = config.rainbowEnabled end
+        
+        -- Mapping variables to UI names for sync
+        local syncMap = {
+            aimbotEnabled = "Enable Aimbot",
+            triggerBotEnabled = "Trigger Bot",
+            aimbotSmoothness = "Aimbot Smoothness",
+            aimbotFOV = "Aimbot FOV Size",
+            wallCheckEnabled = "Wall Check",
+            teamCheckEnabled = "Team Check",
+            predictionEnabled = "Aimbot Prediction",
+            predictionMultiplier = "Prediction Strength",
+            aimbotAutoShoot = "Auto Shoot (Aimbot)",
+            silentAimEnabled = "Silent Aim",
+            silentAimHitChance = "Silent Hit Chance (%)",
+            
+            espEnabled = "Enable ESP Boxes",
+            skeletonEnabled = "Skeleton ESP",
+            chamsEnabled = "Enable Chams",
+            tracersEnabled = "Tracers",
+            crosshairEnabled = "Custom Crosshair",
+            glowEnabled = "Enemy Glow",
+            
+            speedMultiplier = "Speed Multiplier",
+            bulletDodgeEnabled = "Auto Dodge (Bullet)",
+            noclipEnabled = "Noclip",
+            infJumpEnabled = "Infinite Jump",
+            rainbowEnabled = "Rainbow Mode"
+        }
+        
+        -- Sync GUI Elements
+        for varName, uiName in pairs(syncMap) do
+            local val = config[varName]
+            if val ~= nil then
+                local updateFunc = _G.ConfigRegistry[uiName]
+                if updateFunc then
+                    if uiName == "Silent Hit Chance (%)" then val = val * 100 end
+                    pcall(function() updateFunc(val) end)
+                end
+            end
+        end
+        
+        print("[CONFIG] ✅ Configuration loaded and synchronized!")
+    end
+end
+
 --[[
     BEAUTIFUL MODERN GUI MENU
     Full control panel with animations and gradients
@@ -1665,6 +1794,128 @@ VersionLabel.TextSize = 10
 VersionLabel.TextXAlignment = Enum.TextXAlignment.Left
 VersionLabel.Parent = TitleBar
 
+-- Sidebar for Tabs
+local SideBar = Instance.new("Frame")
+SideBar.Name = "SideBar"
+SideBar.Size = UDim2.new(0, 160, 1, -50)
+SideBar.Position = UDim2.new(0, 0, 0, 50)
+SideBar.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+SideBar.BorderSizePixel = 0
+SideBar.Parent = MainFrame
+
+local SideCorner = Instance.new("UICorner")
+SideCorner.CornerRadius = UDim.new(0, 16)
+SideCorner.Parent = SideBar
+
+-- Hide bottom right corner of sidebar to blend with MainFrame
+local SideHide = Instance.new("Frame")
+SideHide.Size = UDim2.new(0, 20, 0, 20)
+SideHide.Position = UDim2.new(1, -20, 1, -20)
+SideHide.BackgroundColor3 = SideBar.BackgroundColor3
+SideHide.BorderSizePixel = 0
+SideHide.Parent = SideBar
+
+-- Content Area for Pages
+local ContentArea = Instance.new("Frame")
+ContentArea.Name = "ContentArea"
+ContentArea.Size = UDim2.new(1, -170, 1, -60)
+ContentArea.Position = UDim2.new(0, 165, 0, 55)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
+
+local pages = {}
+local function createPage(name)
+    local page = Instance.new("ScrollingFrame")
+    page.Name = name .. "Page"
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 4
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.Visible = false
+    page.Parent = ContentArea
+    
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 8)
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = page
+    
+    -- Auto-adjust CanvasSize
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end)
+    
+    pages[name] = page
+    return page
+end
+
+local aimbotPage = createPage("Aimbot")
+local visualsPage = createPage("Visuals")
+local miscPage = createPage("Misc")
+local settingsPage = createPage("Settings")
+
+-- Tab Buttons logic
+local currentTab = nil
+local function switchTab(name)
+    if currentTab == name then return end
+    
+    for tabName, page in pairs(pages) do
+        page.Visible = (tabName == name)
+    end
+    
+    currentTab = name
+end
+
+local tabY = 10
+local function createTabButton(name, icon, pageName)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 40)
+    btn.Position = UDim2.new(0, 10, 0, tabY)
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.Text = icon .. "  " .. name
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
+    btn.AutoButtonColor = false
+    btn.Parent = SideBar
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+    
+    local btnStroke = Instance.new("UIStroke")
+    btnStroke.Color = Color3.fromRGB(85, 170, 255)
+    btnStroke.Thickness = 0
+    btnStroke.Parent = btn
+    
+    btn.MouseButton1Click:Connect(function()
+        switchTab(pageName)
+        
+        -- Reset all buttons
+        for _, child in pairs(SideBar:GetChildren()) do
+            if child:IsA("TextButton") then
+                TweenService:Create(child, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(35, 35, 45), TextColor3 = Color3.fromRGB(200, 200, 200)}):Play()
+                if child:FindFirstChild("UIStroke") then child.UIStroke.Thickness = 0 end
+            end
+        end
+        
+        -- Highlight current
+        TweenService:Create(btn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(50, 50, 65), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        btnStroke.Thickness = 1.5
+    end)
+    
+    tabY = tabY + 50
+end
+
+createTabButton("Aimbot", "🎯", "Aimbot")
+createTabButton("Visuals", "👁️", "Visuals")
+createTabButton("Misc", "🌀", "Misc")
+createTabButton("Settings", "⚙️", "Settings")
+
+-- Default Tab
+switchTab("Aimbot")
+
 -- Close Button with hover effect
 local CloseButton = Instance.new("TextButton")
 CloseButton.Size = UDim2.new(0, 35, 0, 35)
@@ -1730,25 +1981,14 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- Scroll Frame for content (УВЕЛИЧЕННЫЙ)
-local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Size = UDim2.new(1, -20, 1, -60)
-ScrollFrame.Position = UDim2.new(0, 10, 0, 50)
-ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.BorderSizePixel = 0
-ScrollFrame.ScrollBarThickness = 8
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 2000)
-ScrollFrame.Parent = MainFrame
 
 -- Helper function to create section headers with gradient
-local yOffset = 10
-local function createSection(title)
+local function createSection(parent, title)
     local section = Instance.new("Frame")
     section.Size = UDim2.new(1, -10, 0, 35)
-    section.Position = UDim2.new(0, 5, 0, yOffset)
     section.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
     section.BorderSizePixel = 0
-    section.Parent = ScrollFrame
+    section.Parent = parent
     
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
@@ -1777,28 +2017,20 @@ local function createSection(title)
     label.Text = title
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
     label.Font = Enum.Font.GothamBold
-    label.TextSize = 15
+    label.TextSize = 14
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = section
     
-    local textStroke = Instance.new("UIStroke")
-    textStroke.Color = Color3.fromRGB(0, 0, 0)
-    textStroke.Thickness = 1.5
-    textStroke.Transparency = 0.6
-    textStroke.Parent = label
-    
-    yOffset = yOffset + 45
     return section
 end
 
 -- Helper function to create beautiful toggle buttons
-local function createToggle(name, defaultState, callback)
+local function createToggle(parent, name, defaultState, callback)
     local toggleFrame = Instance.new("Frame")
     toggleFrame.Size = UDim2.new(1, -10, 0, 40)
-    toggleFrame.Position = UDim2.new(0, 5, 0, yOffset)
     toggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     toggleFrame.BorderSizePixel = 0
-    toggleFrame.Parent = ScrollFrame
+    toggleFrame.Parent = parent
     
     local frameCorner = Instance.new("UICorner")
     frameCorner.CornerRadius = UDim.new(0, 10)
@@ -1824,20 +2056,20 @@ local function createToggle(name, defaultState, callback)
     label.Text = name
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
     label.Font = Enum.Font.GothamBold
-    label.TextSize = 14
+    label.TextSize = 13
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = toggleFrame
     
     -- Toggle switch indicator
     local indicator = Instance.new("Frame")
-    indicator.Size = UDim2.new(0, 60, 0, 25)
-    indicator.Position = UDim2.new(1, -70, 0.5, -12.5)
+    indicator.Size = UDim2.new(0, 50, 0, 22)
+    indicator.Position = UDim2.new(1, -60, 0.5, -11)
     indicator.BackgroundColor3 = defaultState and Color3.fromRGB(70, 200, 100) or Color3.fromRGB(60, 60, 70)
     indicator.BorderSizePixel = 0
     indicator.Parent = toggleFrame
     
     local indicatorCorner = Instance.new("UICorner")
-    indicatorCorner.CornerRadius = UDim.new(0, 12)
+    indicatorCorner.CornerRadius = UDim.new(0, 11)
     indicatorCorner.Parent = indicator
     
     local statusText = Instance.new("TextLabel")
@@ -1846,7 +2078,7 @@ local function createToggle(name, defaultState, callback)
     statusText.Text = defaultState and "ON" or "OFF"
     statusText.TextColor3 = Color3.fromRGB(255, 255, 255)
     statusText.Font = Enum.Font.GothamBold
-    statusText.TextSize = 12
+    statusText.TextSize = 11
     statusText.Parent = indicator
     
     local state = defaultState
@@ -1882,18 +2114,19 @@ local function createToggle(name, defaultState, callback)
         TweenService:Create(toggleFrame, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 45)}):Play()
     end)
     
-    yOffset = yOffset + 50
+    -- Register for config sync
+    _G.ConfigRegistry[name] = updateToggle
+    
     return updateToggle
 end
 
 -- Helper function to create beautiful sliders with gradient
-local function createSlider(name, min, max, default, callback)
+local function createSlider(parent, name, min, max, default, callback)
     local sliderFrame = Instance.new("Frame")
     sliderFrame.Size = UDim2.new(1, -10, 0, 60)
-    sliderFrame.Position = UDim2.new(0, 5, 0, yOffset)
     sliderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     sliderFrame.BorderSizePixel = 0
-    sliderFrame.Parent = ScrollFrame
+    sliderFrame.Parent = parent
     
     local frameCorner = Instance.new("UICorner")
     frameCorner.CornerRadius = UDim.new(0, 10)
@@ -2020,1034 +2253,196 @@ local function createSlider(name, min, max, default, callback)
         updateSlider({Position = Vector2.new(mousePos.X, mousePos.Y)})
     end)
     
-    yOffset = yOffset + 70
+    -- Register for config sync
+    _G.ConfigRegistry[name] = function(val)
+        val = math.clamp(val, min, max)
+        local relativePos = (val - min) / (max - min)
+        TweenService:Create(fill, TweenInfo.new(0.2), {Size = UDim2.new(relativePos, 0, 1, 0)}):Play()
+        TweenService:Create(handle, TweenInfo.new(0.2), {Position = UDim2.new(relativePos, -9, 0.5, -9)}):Play()
+        valueLabel.Text = string.format("%.2f", val)
+    end
+    
     return sliderFrame
 end
 
--- ESP Section
-createSection("📦 ESP SETTINGS")
-createToggle("ESP Enabled", espEnabled, function(state)
-    espEnabled = state
-    if not state then
-        for player, _ in pairs(espObjects) do
-            removeESP(player)
-        end
-    else
-        initializeESP()
-    end
-    saveConfig()
-end)
+-- [[ CONTENT PAGES (AIMBOT, VISUALS, MISC, SETTINGS) ]]
 
-createToggle("Skeleton ESP", ESP_SETTINGS.SkeletonEnabled, function(state)
-    ESP_SETTINGS.SkeletonEnabled = state
-    saveConfig()
-end)
-
--- Trigger Bot Section
-createSection("🎯 TRIGGER BOT")
-createToggle("Trigger Bot", triggerBotEnabled, function(state)
-    triggerBotEnabled = state
-end)
-createSlider("Trigger Delay", 0.001, 0.5, ESP_SETTINGS.TriggerDelay, function(value)
-    ESP_SETTINGS.TriggerDelay = value
-end)
-
--- Aimbot Section
-createSection("🔫 AIMBOT")
-local updateAimbotToggle -- Defined later to be used in keybinds
-local aimbotToggle = createToggle("Aimbot", aimbotEnabled, function(state)
+-- [[ AIMBOT & TARGETING TAB ]]
+createSection(aimbotPage, "瞄 AIMBOT SETTINGS")
+local updateAimbotToggle
+local aimbotToggle = createToggle(aimbotPage, "Enable Aimbot", aimbotEnabled, function(state)
     aimbotEnabled = state
-    if state then
-        print("[AIMBOT] ✅ Enabled")
-    else
-        print("[AIMBOT] ❌ Disabled")
-    end
     saveConfig()
 end)
-updateAimbotToggle = aimbotToggle -- Store reference
-createSlider("Smoothness", 0.05, 1.0, aimbotSmoothness, function(value)
+updateAimbotToggle = aimbotToggle
+
+createToggle(aimbotPage, "Trigger Bot", triggerBotEnabled, function(state)
+    triggerBotEnabled = state
+    saveConfig()
+end)
+
+createSlider(aimbotPage, "Aimbot Smoothness", 0.05, 1.0, aimbotSmoothness, function(value)
     aimbotSmoothness = value
     saveConfig()
 end)
-createSlider("FOV Size", 50, 3000, aimbotFOV, function(value)
+
+createSlider(aimbotPage, "Aimbot FOV Size", 50, 2000, aimbotFOV, function(value)
     aimbotFOV = value
     saveConfig()
 end)
 
--- Aimbot Mode Selector
-local modeFrame = Instance.new("Frame")
-modeFrame.Size = UDim2.new(1, -10, 0, 40)
-modeFrame.Position = UDim2.new(0, 5, 0, yOffset)
-modeFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-modeFrame.BorderSizePixel = 0
-modeFrame.Parent = ScrollFrame
-
-local modeCorner = Instance.new("UICorner")
-modeCorner.CornerRadius = UDim.new(0, 10)
-modeCorner.Parent = modeFrame
-
-local modeLabel = Instance.new("TextLabel")
-modeLabel.Size = UDim2.new(0.45, 0, 1, 0)
-modeLabel.Position = UDim2.new(0, 15, 0, 0)
-modeLabel.BackgroundTransparency = 1
-modeLabel.Text = "Aim Method:"
-modeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-modeLabel.Font = Enum.Font.GothamBold
-modeLabel.TextSize = 13
-modeLabel.TextXAlignment = Enum.TextXAlignment.Left
-modeLabel.Parent = modeFrame
-
-local modeButton = Instance.new("TextButton")
-modeButton.Size = UDim2.new(0.48, 0, 0.7, 0)
-modeButton.Position = UDim2.new(0.5, 0, 0.15, 0)
-modeButton.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
-modeButton.Text = aimbotMode .. " (Stealth)"
-modeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-modeButton.Font = Enum.Font.GothamBold
-modeButton.TextSize = 12
-modeButton.AutoButtonColor = false
-modeButton.Parent = modeFrame
-
-local modeBtnCorner = Instance.new("UICorner")
-modeBtnCorner.CornerRadius = UDim.new(0, 6)
-modeBtnCorner.Parent = modeButton
-
-modeButton.MouseButton1Click:Connect(function()
-    if aimbotMode == "Mouse" then
-        aimbotMode = "Camera"
-        modeButton.Text = "Camera (Legacy)"
-    else
-        aimbotMode = "Mouse"
-        modeButton.Text = "Mouse (Stealth)"
-    end
-    print("[AIMBOT] Mode switched to: " .. aimbotMode)
+local aimModeSection = createSection(aimbotPage, "Aim Method: " .. aimbotMode)
+createToggle(aimbotPage, "Switch Aim Mode", false, function()
+    aimbotMode = (aimbotMode == "Camera") and "Mouse" or "Camera"
+    aimModeSection.TextLabel.Text = "Aim Method: " .. aimbotMode
     saveConfig()
 end)
 
-yOffset = yOffset + 50
-
--- FOV Quick Presets
-local fovPresetFrame = Instance.new("Frame")
-fovPresetFrame.Size = UDim2.new(1, -10, 0, 35)
-fovPresetFrame.Position = UDim2.new(0, 5, 0, yOffset)
-fovPresetFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-fovPresetFrame.BorderSizePixel = 0
-fovPresetFrame.Parent = ScrollFrame
-
-local fovPresetCorner = Instance.new("UICorner")
-fovPresetCorner.CornerRadius = UDim.new(0, 8)
-fovPresetCorner.Parent = fovPresetFrame
-
-local fovPresets = {
-    {name = "180°", value = 800},
-    {name = "270°", value = 1500},
-    {name = "360°", value = 3000}
-}
-
-for i, preset in ipairs(fovPresets) do
-    local presetBtn = Instance.new("TextButton")
-    presetBtn.Size = UDim2.new(0.3, -5, 0, 25)
-    presetBtn.Position = UDim2.new((i-1) * 0.33, 5, 0, 5)
-    presetBtn.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
-    presetBtn.Text = preset.name
-    presetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    presetBtn.Font = Enum.Font.GothamBold
-    presetBtn.TextSize = 11
-    presetBtn.AutoButtonColor = false
-    presetBtn.Parent = fovPresetFrame
-    
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 5)
-    btnCorner.Parent = presetBtn
-    
-    local btnGradient = Instance.new("UIGradient")
-    btnGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 170, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 85, 255))
-    }
-    btnGradient.Parent = presetBtn
-    
-    presetBtn.MouseButton1Click:Connect(function()
-        aimbotFOV = preset.value
-        print("[AIMBOT FOV] Set to " .. preset.name .. " (" .. preset.value .. ")")
-        
-        TweenService:Create(presetBtn, TweenInfo.new(0.1), {Size = UDim2.new(0.3, -5, 0, 28)}):Play()
-        wait(0.1)
-        TweenService:Create(presetBtn, TweenInfo.new(0.1), {Size = UDim2.new(0.3, -5, 0, 25)}):Play()
-    end)
-    
-    presetBtn.MouseEnter:Connect(function()
-        TweenService:Create(presetBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 190, 255)}):Play()
-    end)
-    presetBtn.MouseLeave:Connect(function()
-        TweenService:Create(presetBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(85, 170, 255)}):Play()
-    end)
-end
-
-yOffset = yOffset + 45
-
-createToggle("Wall Check", wallCheckEnabled, function(state)
+createToggle(aimbotPage, "Wall Check", wallCheckEnabled, function(state)
     wallCheckEnabled = state
-    if state then
-        print("[AIMBOT] ✅ Wall Check Enabled - Ignoring targets behind walls")
-    else
-        print("[AIMBOT] ❌ Wall Check Disabled - Can target through walls")
-    end
+    saveConfig()
 end)
-createToggle("Team Check", teamCheckEnabled, function(state)
+
+createToggle(aimbotPage, "Team Check", teamCheckEnabled, function(state)
     teamCheckEnabled = state
-    if state then
-        print("[AIMBOT] ✅ Team Check Enabled - Protecting teammates")
-    else
-        print("[AIMBOT] ❌ Team Check Disabled - Will target anyone")
-    end
+    saveConfig()
 end)
 
--- Prediction Settings
-createToggle("Velocity Prediction", predictionEnabled, function(state)
+createToggle(aimbotPage, "Aimbot Prediction", predictionEnabled, function(state)
     predictionEnabled = state
-    if state then
-        print("[AIMBOT] ✅ Velocity Prediction Enabled - Predicting enemy movement!")
-        print("[AIMBOT] Prediction Strength: " .. (predictionMultiplier * 100) .. "%")
-    else
-        print("[AIMBOT] ❌ Velocity Prediction Disabled - Basic aim only")
-    end
+    saveConfig()
 end)
-createSlider("Prediction Strength", 0.05, 0.5, predictionMultiplier, function(value)
+
+createSlider(aimbotPage, "Prediction Strength", 0.1, 5.0, predictionMultiplier, function(value)
     predictionMultiplier = value
-    if predictionEnabled then
-        print("[AIMBOT] Prediction set to " .. math.floor(value * 100) .. "%")
-    end
+    saveConfig()
 end)
 
--- Target Part Selector
-local targetFrame = Instance.new("Frame")
-targetFrame.Size = UDim2.new(1, -10, 0, 40)
-targetFrame.Position = UDim2.new(0, 5, 0, yOffset)
-targetFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-targetFrame.BorderSizePixel = 0
-targetFrame.Parent = ScrollFrame
-
-local targetCorner = Instance.new("UICorner")
-targetCorner.CornerRadius = UDim.new(0, 10)
-targetCorner.Parent = targetFrame
-
-local targetStroke = Instance.new("UIStroke")
-targetStroke.Color = Color3.fromRGB(85, 170, 255)
-targetStroke.Thickness = 1.5
-targetStroke.Transparency = 0.7
-targetStroke.Parent = targetFrame
-
-local targetLabel = Instance.new("TextLabel")
-targetLabel.Size = UDim2.new(0.45, 0, 1, 0)
-targetLabel.Position = UDim2.new(0, 15, 0, 0)
-targetLabel.BackgroundTransparency = 1
-targetLabel.Text = "Target Part:"
-targetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-targetLabel.Font = Enum.Font.GothamBold
-targetLabel.TextSize = 13
-targetLabel.TextXAlignment = Enum.TextXAlignment.Left
-targetLabel.Parent = targetFrame
-
-local targetButton = Instance.new("TextButton")
-targetButton.Size = UDim2.new(0.48, 0, 0.7, 0)
-targetButton.Position = UDim2.new(0.5, 0, 0.15, 0)
-targetButton.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
-targetButton.Text = aimbotTargetPart
-targetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-targetButton.Font = Enum.Font.GothamBold
-targetButton.TextSize = 12
-targetButton.AutoButtonColor = false
-targetButton.Parent = targetFrame
-
-local targetBtnCorner = Instance.new("UICorner")
-targetBtnCorner.CornerRadius = UDim.new(0, 6)
-targetBtnCorner.Parent = targetButton
-
-local targetGradient = Instance.new("UIGradient")
-targetGradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 170, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 85, 255))
-}
-targetGradient.Parent = targetButton
-
-local targetParts = {"Head", "HumanoidRootPart", "Torso"}
-local targetIndex = 1
-targetButton.MouseButton1Click:Connect(function()
-    targetIndex = targetIndex % #targetParts + 1
-    aimbotTargetPart = targetParts[targetIndex]
-    targetButton.Text = aimbotTargetPart
-    
-    -- Click animation
-    TweenService:Create(targetButton, TweenInfo.new(0.1), {Size = UDim2.new(0.5, 0, 0.75, 0)}):Play()
-    wait(0.1)
-    TweenService:Create(targetButton, TweenInfo.new(0.1), {Size = UDim2.new(0.48, 0, 0.7, 0)}):Play()
-end)
-
-targetButton.MouseEnter:Connect(function()
-    TweenService:Create(targetButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 190, 255)}):Play()
-end)
-targetButton.MouseLeave:Connect(function()
-    TweenService:Create(targetButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(85, 170, 255)}):Play()
-end)
-
-yOffset = yOffset + 50
-
--- Aimbot Additional Options
-createToggle("Auto Shoot", aimbotAutoShoot, function(state)
+createToggle(aimbotPage, "Auto Shoot (Aimbot)", aimbotAutoShoot, function(state)
     aimbotAutoShoot = state
-    if state then
-        print("[AIMBOT] ✅ Auto Shoot Enabled - Will fire when locked!")
-        print("[AIMBOT] Fire rate: " .. aimbotShootDelay .. "s")
-    else
-        print("[AIMBOT] ❌ Auto Shoot Disabled - Aim only")
-    end
-end)
-createSlider("Fire Rate", 0.05, 1.0, aimbotShootDelay, function(value)
-    aimbotShootDelay = value
+    saveConfig()
 end)
 
--- Camera FOV Section
-createSection("📷 CAMERA SETTINGS")
-createToggle("Custom FOV", customFOVEnabled, function(state)
-    customFOVEnabled = state
-    applyCameraFOV()
-    if state then
-        print("[CAMERA FOV] ✅ Enabled - FOV set to " .. customFOV)
-    else
-        print("[CAMERA FOV] ❌ Disabled - FOV reset to " .. defaultFOV)
-    end
-end)
-createSlider("FOV Amount", 30, 120, customFOV, function(value)
-    customFOV = value
-    if customFOVEnabled then
-        applyCameraFOV()
-    end
-end)
-
--- 360 Shoot Section
-createSection("🎯 SILENT AIM (360°)")
-createToggle("Silent Aim", silentAimEnabled, function(state)
+createSection(aimbotPage, "🎯 SILENT AIM")
+createToggle(aimbotPage, "Silent Aim", silentAimEnabled, function(state)
     silentAimEnabled = state
-    if state then
-        print("[SILENT AIM] ✅ Enabled - Shoots in any direction!")
-        print("[SILENT AIM] You can hit enemies without aiming at them")
-    else
-        print("[SILENT AIM] ❌ Disabled")
-    end
-end)
-createSlider("Hit Chance %", 0, 100, silentAimHitChance, function(value)
-    silentAimHitChance = value
-end)
-createToggle("Auto Shoot", autoShootEnabled, function(state)
-    autoShootEnabled = state
-    if state then
-        print("[AUTO SHOOT] ✅ Enabled - Automatic firing!")
-        print("[AUTO SHOOT] Will shoot automatically at targets")
-    else
-        print("[AUTO SHOOT] ❌ Disabled")
-    end
-end)
-createSlider("Fire Rate", 0.05, 1.0, autoShootDelay, function(value)
-    autoShootDelay = value
-end)
-
--- Bullet Dodge Section
-createSection("🚀 BULLET DODGE")
-createToggle("Auto Dodge", bulletDodgeEnabled, function(state)
-    bulletDodgeEnabled = state
-    if state then
-        print("[BULLET DODGE] ✅ Enabled - Matrix mode activated!")
-        print("[BULLET DODGE] Automatically dodging incoming bullets")
-    else
-        print("[BULLET DODGE] ❌ Disabled")
-    end
-end)
-createSlider("Detection Range", 5, 50, dodgeDistance, function(value)
-    dodgeDistance = value
-end)
-createSlider("Dodge Speed", 1, 5, dodgeSpeed, function(value)
-    dodgeSpeed = value
-end)
-
--- Speed Hack Section
-createSection("⚡ SPEED HACK")
-createToggle("Speed Boost", speedHackEnabled, function(state)
-    speedHackEnabled = state
-    applySpeedHack()
-    if state then
-        print("[SPEED HACK] ✅ Enabled - Running at " .. speedMultiplier .. "x speed!")
-        print("[SPEED HACK] WalkSpeed: " .. (originalWalkSpeed * speedMultiplier))
-    else
-        print("[SPEED HACK] ❌ Disabled - Normal speed restored")
-        print("[SPEED HACK] WalkSpeed: " .. originalWalkSpeed)
-    end
-end)
-createSlider("Speed Multiplier", 1, 10, speedMultiplier, function(value)
-    speedMultiplier = value
-    if speedHackEnabled then
-        applySpeedHack()
-        print("[SPEED HACK] Speed set to " .. speedMultiplier .. "x")
-    end
-end)
-
--- Config Management Section
-createSection("💾 CONFIG MANAGER")
-
--- Save Config Function
-local function saveConfig()
-    local config = {
-        -- ESP Settings
-        espEnabled = espEnabled,
-        BoxEnabled = ESP_SETTINGS.BoxEnabled,
-        NameEnabled = ESP_SETTINGS.NameEnabled,
-        HealthEnabled = ESP_SETTINGS.HealthEnabled,
-        DistanceEnabled = ESP_SETTINGS.DistanceEnabled,
-        
-        -- Trigger Bot
-        triggerBotEnabled = triggerBotEnabled,
-        TriggerDelay = ESP_SETTINGS.TriggerDelay,
-        triggerBotSmart = triggerBotSmart,
-        
-        -- Aimbot
-        aimbotEnabled = aimbotEnabled,
-        aimbotTargetPart = aimbotTargetPart,
-        aimbotSmoothness = aimbotSmoothness,
-        aimbotFOV = aimbotFOV,
-        aimbotMode = aimbotMode,
-        wallCheckEnabled = wallCheckEnabled,
-        teamCheckEnabled = teamCheckEnabled,
-        predictionEnabled = predictionEnabled,
-        predictionMultiplier = predictionMultiplier,
-        aimbotAutoShoot = aimbotAutoShoot,
-        aimbotShootDelay = aimbotShootDelay,
-        
-        -- Misc
-        noclipEnabled = noclipEnabled,
-        infJumpEnabled = infJumpEnabled,
-        SkeletonEnabled = ESP_SETTINGS.SkeletonEnabled,
-        
-        -- Camera FOV
-        customFOVEnabled = customFOVEnabled,
-        customFOV = customFOV,
-        
-        -- Silent Aim
-        silentAimEnabled = silentAimEnabled,
-        silentAimHitChance = silentAimHitChance,
-        autoShootEnabled = autoShootEnabled,
-        autoShootDelay = autoShootDelay,
-        
-        -- Bullet Dodge
-        bulletDodgeEnabled = bulletDodgeEnabled,
-        dodgeDistance = dodgeDistance,
-        dodgeSpeed = dodgeSpeed,
-        
-        -- Speed Hack
-        speedHackEnabled = speedHackEnabled,
-        speedMultiplier = speedMultiplier
-    }
-    
-    local HttpService = game:GetService("HttpService")
-    local configJSON = HttpService:JSONEncode(config)
-    
-    local success, err = pcall(function()
-        writefile("MultihackConfig.json", configJSON)
-    end)
-    
-    if success then
-        print("╔══════════════════════════════════════════════╗")
-        print("║     💾 CONFIG SAVED SUCCESSFULLY! 💾         ║")
-        print("╠══════════════════════════════════════════════╣")
-        print("║  File: MultihackConfig.json                  ║")
-        print("║  Location: workspace folder                  ║")
-        print("║  You can share this file with others!       ║")
-        print("╚══════════════════════════════════════════════╝")
-    else
-        warn("[CONFIG] ❌ Failed to save: " .. tostring(err))
-    end
-end
-
--- Load Config Function
-local function loadConfig()
-    local success, configJSON = pcall(function()
-        return readfile("MultihackConfig.json")
-    end)
-    
-    if not success then
-        warn("[CONFIG] ❌ No config file found!")
-        return
-    end
-    
-    local HttpService = game:GetService("HttpService")
-    local loadSuccess, config = pcall(function()
-        return HttpService:JSONDecode(configJSON)
-    end)
-    
-    if not loadSuccess then
-        warn("[CONFIG] ❌ Failed to parse config file!")
-        return
-    end
-    
-    -- Apply ESP Settings
-    espEnabled = config.espEnabled or espEnabled
-    ESP_SETTINGS.BoxEnabled = config.BoxEnabled or ESP_SETTINGS.BoxEnabled
-    ESP_SETTINGS.NameEnabled = config.NameEnabled or ESP_SETTINGS.NameEnabled
-    ESP_SETTINGS.HealthEnabled = config.HealthEnabled or ESP_SETTINGS.HealthEnabled
-    ESP_SETTINGS.DistanceEnabled = config.DistanceEnabled or ESP_SETTINGS.DistanceEnabled
-    
-    -- Apply Trigger Bot
-    triggerBotEnabled = config.triggerBotEnabled or false
-    ESP_SETTINGS.TriggerDelay = config.TriggerDelay or ESP_SETTINGS.TriggerDelay
-    triggerBotSmart = config.triggerBotSmart or triggerBotSmart
-    
-    -- Apply Aimbot
-    aimbotEnabled = config.aimbotEnabled or false
-    aimbotTargetPart = config.aimbotTargetPart or aimbotTargetPart
-    aimbotSmoothness = config.aimbotSmoothness or aimbotSmoothness
-    aimbotFOV = config.aimbotFOV or aimbotFOV
-    aimbotMode = config.aimbotMode or aimbotMode
-    wallCheckEnabled = config.wallCheckEnabled or wallCheckEnabled
-    teamCheckEnabled = config.teamCheckEnabled or teamCheckEnabled
-    predictionEnabled = config.predictionEnabled or false
-    predictionMultiplier = config.predictionMultiplier or predictionMultiplier
-    aimbotAutoShoot = config.aimbotAutoShoot or false
-    aimbotShootDelay = config.aimbotShootDelay or aimbotShootDelay
-    
-    -- Apply Misc
-    noclipEnabled = config.noclipEnabled or false
-    infJumpEnabled = config.infJumpEnabled or false
-    ESP_SETTINGS.SkeletonEnabled = config.SkeletonEnabled or false
-    
-    -- Apply Camera FOV
-    customFOVEnabled = config.customFOVEnabled or false
-    customFOV = config.customFOV or customFOV
-    if customFOVEnabled then
-        applyCameraFOV()
-    end
-    
-    -- Apply Silent Aim
-    silentAimEnabled = config.silentAimEnabled or false
-    silentAimHitChance = config.silentAimHitChance or silentAimHitChance
-    autoShootEnabled = config.autoShootEnabled or false
-    autoShootDelay = config.autoShootDelay or autoShootDelay
-    
-    -- Apply Bullet Dodge
-    bulletDodgeEnabled = config.bulletDodgeEnabled or false
-    dodgeDistance = config.dodgeDistance or dodgeDistance
-    dodgeSpeed = config.dodgeSpeed or dodgeSpeed
-    
-    -- Apply Speed Hack
-    speedHackEnabled = config.speedHackEnabled or false
-    speedMultiplier = config.speedMultiplier or speedMultiplier
-    if speedHackEnabled then
-        applySpeedHack()
-    end
-    
-    print("╔══════════════════════════════════════════════╗")
-    print("║     ✅ CONFIG LOADED SUCCESSFULLY! ✅        ║")
-    print("╠══════════════════════════════════════════════╣")
-    print("║  All settings have been restored!            ║")
-    print("║  Aimbot: " .. (aimbotEnabled and "ON" or "OFF") .. " | Trigger: " .. (triggerBotEnabled and "ON" or "OFF") .. "             ║")
-    print("║  Speed Hack: " .. (speedHackEnabled and speedMultiplier .. "x" or "OFF") .. "                          ║")
-    print("╚══════════════════════════════════════════════╝")
-end
-
--- Config buttons frame
-local configFrame = Instance.new("Frame")
-configFrame.Size = UDim2.new(1, -10, 0, 40)
-configFrame.Position = UDim2.new(0, 5, 0, yOffset)
-configFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-configFrame.BorderSizePixel = 0
-configFrame.Parent = ScrollFrame
-
-local configCorner = Instance.new("UICorner")
-configCorner.CornerRadius = UDim.new(0, 10)
-configCorner.Parent = configFrame
-
-local configStroke = Instance.new("UIStroke")
-configStroke.Color = Color3.fromRGB(85, 170, 255)
-configStroke.Thickness = 1.5
-configStroke.Transparency = 0.7
-configStroke.Parent = configFrame
-
--- Save Button
-local saveBtn = Instance.new("TextButton")
-saveBtn.Size = UDim2.new(0.48, -5, 0, 30)
-saveBtn.Position = UDim2.new(0, 5, 0, 5)
-saveBtn.BackgroundColor3 = Color3.fromRGB(85, 255, 127)
-saveBtn.Text = "💾 SAVE CONFIG"
-saveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-saveBtn.Font = Enum.Font.GothamBold
-saveBtn.TextSize = 12
-saveBtn.AutoButtonColor = false
-saveBtn.Parent = configFrame
-
-local saveBtnCorner = Instance.new("UICorner")
-saveBtnCorner.CornerRadius = UDim.new(0, 8)
-saveBtnCorner.Parent = saveBtn
-
-local saveBtnGradient = Instance.new("UIGradient")
-saveBtnGradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 255, 127)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(127, 255, 85))
-}
-saveBtnGradient.Parent = saveBtn
-
-saveBtn.MouseButton1Click:Connect(function()
     saveConfig()
-    TweenService:Create(saveBtn, TweenInfo.new(0.1), {Size = UDim2.new(0.5, -5, 0, 33)}):Play()
-    wait(0.1)
-    TweenService:Create(saveBtn, TweenInfo.new(0.1), {Size = UDim2.new(0.48, -5, 0, 30)}):Play()
 end)
 
-saveBtn.MouseEnter:Connect(function()
-    TweenService:Create(saveBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(100, 255, 150)}):Play()
-end)
-saveBtn.MouseLeave:Connect(function()
-    TweenService:Create(saveBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(85, 255, 127)}):Play()
+createSlider(aimbotPage, "Silent Hit Chance (%)", 0, 100, silentAimHitChance * 100, function(value)
+    silentAimHitChance = value / 100
+    saveConfig()
 end)
 
--- Load Button
-local loadBtn = Instance.new("TextButton")
-loadBtn.Size = UDim2.new(0.48, -5, 0, 30)
-loadBtn.Position = UDim2.new(0.52, 0, 0, 5)
-loadBtn.BackgroundColor3 = Color3.fromRGB(255, 170, 85)
-loadBtn.Text = "📂 LOAD CONFIG"
-loadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-loadBtn.Font = Enum.Font.GothamBold
-loadBtn.TextSize = 12
-loadBtn.AutoButtonColor = false
-loadBtn.Parent = configFrame
-
-local loadBtnCorner = Instance.new("UICorner")
-loadBtnCorner.CornerRadius = UDim.new(0, 8)
-loadBtnCorner.Parent = loadBtn
-
-local loadBtnGradient = Instance.new("UIGradient")
-loadBtnGradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 170, 85)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 85, 170))
-}
-loadBtnGradient.Parent = loadBtn
-
-loadBtn.MouseButton1Click:Connect(function()
-    loadConfig()
-    TweenService:Create(loadBtn, TweenInfo.new(0.1), {Size = UDim2.new(0.5, -5, 0, 33)}):Play()
-    wait(0.1)
-    TweenService:Create(loadBtn, TweenInfo.new(0.1), {Size = UDim2.new(0.48, -5, 0, 30)}):Play()
+-- [[ VISUALS & ESP TAB ]]
+createSection(visualsPage, "👁️ ESP SETTINGS")
+createToggle(visualsPage, "Enable ESP Boxes", espEnabled, function(state)
+    espEnabled = state
+    saveConfig()
 end)
 
-loadBtn.MouseEnter:Connect(function()
-    TweenService:Create(loadBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 190, 100)}):Play()
-end)
-loadBtn.MouseLeave:Connect(function()
-    TweenService:Create(loadBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 170, 85)}):Play()
+createToggle(visualsPage, "Skeleton ESP", ESP_SETTINGS.SkeletonEnabled, function(state)
+    ESP_SETTINGS.SkeletonEnabled = state
+    saveConfig()
 end)
 
-yOffset = yOffset + 50
-
--- ============================================
--- 🌍 WORLD VISUALS SECTION
--- ============================================
-do
--- Create World Visuals Section
-createSection("🌍 WORLD VISUALS")
-
--- Theme Selector
-local themeFrame = Instance.new("Frame")
-themeFrame.Size = UDim2.new(1, -10, 0, 50)
-themeFrame.Position = UDim2.new(0, 5, 0, yOffset)
-themeFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-themeFrame.BorderSizePixel = 0
-themeFrame.Parent = ScrollFrame
-
-local themeCorner = Instance.new("UICorner")
-themeCorner.CornerRadius = UDim.new(0, 10)
-themeCorner.Parent = themeFrame
-
-local themeLabel = Instance.new("TextLabel")
-themeLabel.Size = UDim2.new(0.4, 0, 1, 0)
-themeLabel.Position = UDim2.new(0, 10, 0, 0)
-themeLabel.BackgroundTransparency = 1
-themeLabel.Text = "Theme:"
-themeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-themeLabel.Font = Enum.Font.GothamBold
-themeLabel.TextSize = 13
-themeLabel.TextXAlignment = Enum.TextXAlignment.Left
-themeLabel.Parent = themeFrame
-
-yOffset = yOffset + 55
-
--- Theme Buttons
-local worldThemes = {
-    {name = "Normal", icon = "🌟", color = Color3.fromRGB(100, 100, 120)},
-    {name = "Cyberpunk", icon = "🌃", color = Color3.fromRGB(150, 50, 255)},
-    {name = "Neon", icon = "💜", color = Color3.fromRGB(255, 0, 200)},
-    {name = "Sunset", icon = "🌅", color = Color3.fromRGB(255, 150, 50)},
-    {name = "Matrix", icon = "💚", color = Color3.fromRGB(0, 255, 0)},
-    {name = "Hell", icon = "🔥", color = Color3.fromRGB(255, 0, 0)},
-    {name = "Ice", icon = "❄️", color = Color3.fromRGB(100, 200, 255)},
-    {name = "Rainbow", icon = "🌈", color = Color3.fromRGB(255, 255, 255)}
-}
-
-local buttonsPerRow = 2
-local buttonWidth = 190
-local buttonHeight = 45
-local buttonSpacing = 10
-
-for i, theme in ipairs(worldThemes) do
-    local row = math.floor((i - 1) / buttonsPerRow)
-    local col = (i - 1) % buttonsPerRow
-    
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, buttonWidth, 0, buttonHeight)
-    btn.Position = UDim2.new(0, 5 + col * (buttonWidth + buttonSpacing), 0, yOffset + row * (buttonHeight + 5))
-    btn.BackgroundColor3 = theme.color
-    btn.Text = theme.icon .. " " .. theme.name
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 14
-    btn.TextScaled = false
-    btn.AutoButtonColor = false
-    btn.Parent = ScrollFrame
-    
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 8)
-    btnCorner.Parent = btn
-    
-    local btnStroke = Instance.new("UIStroke")
-    btnStroke.Color = Color3.fromRGB(255, 255, 255)
-    btnStroke.Thickness = 0
-    btnStroke.Transparency = 0.5
-    btnStroke.Parent = btn
-    
-    -- Click handler
-    btn.MouseButton1Click:Connect(function()
-        if _G.WorldVisuals then
-            if theme.name == "Normal" then
-                _G.WorldVisuals.restore()
-                _G.WorldVisuals.toggleRainbow(false)
-                print("[WORLD] 🌟 Normal mode restored!")
-            else
-                _G.WorldVisuals.applyTheme(theme.name)
-                
-                if theme.name == "Rainbow" then
-                    _G.WorldVisuals.toggleRainbow(true)
-                else
-                    _G.WorldVisuals.toggleRainbow(false)
-                end
-                
-                print("[WORLD] 🎨 Applied theme: " .. theme.name)
-            end
-        end
-        
-        -- Visual feedback
-        TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(0, buttonWidth + 5, 0, buttonHeight + 3)}):Play()
-        task.wait(0.1)
-        TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(0, buttonWidth, 0, buttonHeight)}):Play()
-    end)
-    
-    -- Hover effects
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btnStroke, TweenInfo.new(0.2), {Thickness = 2}):Play()
-    end)
-    
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btnStroke, TweenInfo.new(0.2), {Thickness = 0}):Play()
-    end)
-end
-
-yOffset = yOffset + math.ceil(#worldThemes / buttonsPerRow) * (buttonHeight + 5) + 15
-
--- CHAMS Settings Section
-createSection("🎨 CHAMS SETTINGS")
-
--- CHAMS Toggle
-createToggle("Enable CHAMS", false, function(state)
+createToggle(visualsPage, "Enable Chams", _G.chamsEnabled, function(state)
     _G.chamsEnabled = state
-    if state then
-        print("[CHAMS] ✅ Enabled - Enemies highlighted!")
-        print("[DEBUG] Enemy color: " .. tostring(_G.chamsColor))
-        print("[DEBUG] Teammate color: " .. tostring(_G.teammateChamsColor))
-    else
-        print("[CHAMS] ❌ Disabled")
-    end
-end)
-
--- Enemy Color Selector
-local enemyColorFrame = Instance.new("Frame")
-enemyColorFrame.Size = UDim2.new(1, -10, 0, 80)
-enemyColorFrame.Position = UDim2.new(0, 5, 0, yOffset)
-enemyColorFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-enemyColorFrame.BorderSizePixel = 0
-enemyColorFrame.Parent = ScrollFrame
-
-local enemyColorCorner = Instance.new("UICorner")
-enemyColorCorner.CornerRadius = UDim.new(0, 10)
-enemyColorCorner.Parent = enemyColorFrame
-
-local enemyColorLabel = Instance.new("TextLabel")
-enemyColorLabel.Size = UDim2.new(1, -20, 0, 20)
-enemyColorLabel.Position = UDim2.new(0, 10, 0, 5)
-enemyColorLabel.BackgroundTransparency = 1
-enemyColorLabel.Text = "🔴 Enemy Color:"
-enemyColorLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-enemyColorLabel.Font = Enum.Font.GothamBold
-enemyColorLabel.TextSize = 13
-enemyColorLabel.TextXAlignment = Enum.TextXAlignment.Left
-enemyColorLabel.Parent = enemyColorFrame
-
--- Enemy Color Buttons
-local enemyColors = {
-    {name = "Red", color = Color3.fromRGB(255, 0, 100)},
-    {name = "Pink", color = Color3.fromRGB(255, 100, 200)},
-    {name = "Purple", color = Color3.fromRGB(200, 0, 255)},
-    {name = "Blue", color = Color3.fromRGB(0, 150, 255)},
-    {name = "Cyan", color = Color3.fromRGB(0, 255, 255)},
-    {name = "Green", color = Color3.fromRGB(0, 255, 100)}
-}
-
-for i, colorData in ipairs(enemyColors) do
-    local colorBtn = Instance.new("TextButton")
-    colorBtn.Size = UDim2.new(0, 60, 0, 35)
-    colorBtn.Position = UDim2.new(0, 10 + (i - 1) * 65, 0, 30)
-    colorBtn.BackgroundColor3 = colorData.color
-    colorBtn.Text = colorData.name
-    colorBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    colorBtn.Font = Enum.Font.GothamBold
-    colorBtn.TextSize = 10
-    colorBtn.AutoButtonColor = false
-    colorBtn.Parent = enemyColorFrame
-    
-    local colorCorner = Instance.new("UICorner")
-    colorCorner.CornerRadius = UDim.new(0, 8)
-    colorCorner.Parent = colorBtn
-    
-    local colorStroke = Instance.new("UIStroke")
-    colorStroke.Color = Color3.fromRGB(255, 255, 255)
-    colorStroke.Thickness = 0
-    colorStroke.Transparency = 0.5
-    colorStroke.Parent = colorBtn
-    
-    colorBtn.MouseButton1Click:Connect(function()
-        _G.chamsColor = colorData.color
-        print("[CHAMS] 🔴 Enemy color set to: " .. colorData.name)
-        print("[DEBUG] New enemy color RGB: " .. tostring(colorData.color))
-        
-        -- Visual feedback
-        TweenService:Create(colorStroke, TweenInfo.new(0.2), {Thickness = 3, Transparency = 0}):Play()
-        task.wait(0.2)
-        TweenService:Create(colorStroke, TweenInfo.new(0.2), {Thickness = 0, Transparency = 0.5}):Play()
-    end)
-end
-
-yOffset = yOffset + 85
-
--- Teammate Color Selector
-local teamColorFrame = Instance.new("Frame")
-teamColorFrame.Size = UDim2.new(1, -10, 0, 80)
-teamColorFrame.Position = UDim2.new(0, 5, 0, yOffset)
-teamColorFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-teamColorFrame.BorderSizePixel = 0
-teamColorFrame.Parent = ScrollFrame
-
-local teamColorCorner = Instance.new("UICorner")
-teamColorCorner.CornerRadius = UDim.new(0, 10)
-teamColorCorner.Parent = teamColorFrame
-
-local teamColorLabel = Instance.new("TextLabel")
-teamColorLabel.Size = UDim2.new(1, -20, 0, 20)
-teamColorLabel.Position = UDim2.new(0, 10, 0, 5)
-teamColorLabel.BackgroundTransparency = 1
-teamColorLabel.Text = "💚 Teammate Color:"
-teamColorLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-teamColorLabel.Font = Enum.Font.GothamBold
-teamColorLabel.TextSize = 13
-teamColorLabel.TextXAlignment = Enum.TextXAlignment.Left
-teamColorLabel.Parent = teamColorFrame
-
--- Teammate Color Buttons
-local teamColors = {
-    {name = "Green", color = Color3.fromRGB(0, 255, 100)},
-    {name = "Lime", color = Color3.fromRGB(150, 255, 0)},
-    {name = "Yellow", color = Color3.fromRGB(255, 255, 0)},
-    {name = "Orange", color = Color3.fromRGB(255, 150, 0)},
-    {name = "White", color = Color3.fromRGB(255, 255, 255)},
-    {name = "Gray", color = Color3.fromRGB(150, 150, 150)}
-}
-
-for i, colorData in ipairs(teamColors) do
-    local colorBtn = Instance.new("TextButton")
-    colorBtn.Size = UDim2.new(0, 60, 0, 35)
-    colorBtn.Position = UDim2.new(0, 10 + (i - 1) * 65, 0, 30)
-    colorBtn.BackgroundColor3 = colorData.color
-    colorBtn.Text = colorData.name
-    colorBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
-    colorBtn.Font = Enum.Font.GothamBold
-    colorBtn.TextSize = 10
-    colorBtn.AutoButtonColor = false
-    colorBtn.Parent = teamColorFrame
-    
-    local colorCorner = Instance.new("UICorner")
-    colorCorner.CornerRadius = UDim.new(0, 8)
-    colorCorner.Parent = colorBtn
-    
-    local colorStroke = Instance.new("UIStroke")
-    colorStroke.Color = Color3.fromRGB(255, 255, 255)
-    colorStroke.Thickness = 0
-    colorStroke.Transparency = 0.5
-    colorStroke.Parent = colorBtn
-    
-    colorBtn.MouseButton1Click:Connect(function()
-        _G.teammateChamsColor = colorData.color
-        print("[CHAMS] 💚 Teammate color set to: " .. colorData.name)
-        
-        -- Visual feedback
-        TweenService:Create(colorStroke, TweenInfo.new(0.2), {Thickness = 3, Transparency = 0}):Play()
-        task.wait(0.2)
-        TweenService:Create(colorStroke, TweenInfo.new(0.2), {Thickness = 0, Transparency = 0.5}):Play()
-    end)
-end
-
-yOffset = yOffset + 85
-
--- Additional Effects
-createToggle("Speed Blur", false, function(state)
-    if _G.WorldVisuals then
-        _G.WorldVisuals.toggleSpeedBlur(state)
-        print("[WORLD] 💨 Speed Blur: " .. (state and "ON" or "OFF"))
-    end
-end)
-
-createToggle("Pulse Effect", false, function(state)
-    if _G.WorldVisuals then
-        _G.WorldVisuals.togglePulse(state)
-        print("[WORLD] 💓 Pulse Effect: " .. (state and "ON" or "OFF"))
-    end
-end)
-
--- Misc Section
-createToggle("Pulse Effect", false, function(state)
-    if _G.WorldVisuals then
-        _G.WorldVisuals.togglePulse(state)
-        print("[WORLD] 💓 Pulse Effect: " .. (state and "ON" or "OFF"))
-    end
     saveConfig()
 end)
 
--- Misc Section
-createSection("🌀 MISC FEATURES")
-createToggle("Noclip", noclipEnabled, function(state)
+createToggle(visualsPage, "Tracers", tracersEnabled, function(state)
+    tracersEnabled = state
+    saveConfig()
+end)
+
+createSection(visualsPage, "🎨 COLORS & HUD")
+createToggle(visualsPage, "Custom Crosshair", crosshairEnabled, function(state)
+    crosshairEnabled = state
+    saveConfig()
+end)
+
+createToggle(visualsPage, "Enemy Glow", glowEnabled, function(state)
+    glowEnabled = state
+    saveConfig()
+end)
+
+-- [[ MISC & CHEATS TAB ]]
+createSection(miscPage, "🌀 CHARACTER CHEATS")
+createToggle(miscPage, "Noclip", noclipEnabled, function(state)
     noclipEnabled = state
     saveConfig()
 end)
-createToggle("Infinite Jump", infJumpEnabled, function(state)
+
+createToggle(miscPage, "Infinite Jump", infJumpEnabled, function(state)
     infJumpEnabled = state
     saveConfig()
 end)
 
-createSlider("Bloom Intensity", 0, 3, 1, function(value)
-    if _G.WorldVisuals then
-        _G.WorldVisuals.setBloomIntensity(value)
-    end
+createSlider(miscPage, "Speed Multiplier", 1, 10, speedMultiplier, function(value)
+    speedMultiplier = value
+    saveConfig()
 end)
 
-createSlider("Bloom Size", 10, 100, 40, function(value)
-    if _G.WorldVisuals then
-        _G.WorldVisuals.setBloomSize(value)
-    end
+createSection(miscPage, "🛡️ DEFENSE")
+createToggle(miscPage, "Auto Dodge (Bullet)", bulletDodgeEnabled, function(state)
+    bulletDodgeEnabled = state
+    saveConfig()
 end)
 
-createSlider("Fog Distance", 100, 2000, 500, function(value)
-    if _G.WorldVisuals then
-        _G.WorldVisuals.setFogDistance(value)
-    end
+-- [[ SETTINGS & WORLD TAB ]]
+createSection(settingsPage, "🌍 WORLD VISUALS")
+for name, _ in pairs(_G.WorldVisuals.themes) do
+    createToggle(settingsPage, "Theme: " .. name, false, function()
+        _G.WorldVisuals.applyTheme(name)
+        saveConfig()
+    end)
+end
+
+createToggle(settingsPage, "Rainbow Mode", rainbowEnabled, function(state)
+    _G.WorldVisuals.toggleRainbow(state)
+    saveConfig()
 end)
 
--- Restore Button
-local restoreBtn = Instance.new("TextButton")
-restoreBtn.Size = UDim2.new(1, -10, 0, 35)
-restoreBtn.Position = UDim2.new(0, 5, 0, yOffset)
-restoreBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-restoreBtn.Text = "♻️ RESTORE ORIGINAL"
-restoreBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-restoreBtn.Font = Enum.Font.GothamBold
-restoreBtn.TextSize = 14
-restoreBtn.AutoButtonColor = false
-restoreBtn.Parent = ScrollFrame
-
-local restoreCorner = Instance.new("UICorner")
-restoreCorner.CornerRadius = UDim.new(0, 10)
-restoreCorner.Parent = restoreBtn
-
-restoreBtn.MouseButton1Click:Connect(function()
-    if _G.WorldVisuals then
-        _G.WorldVisuals.restore()
-        _G.WorldVisuals.toggleRainbow(false)
-        _G.WorldVisuals.toggleSpeedBlur(false)
-        _G.WorldVisuals.togglePulse(false)
-        print("[WORLD] ♻️ Original lighting restored!")
-    end
-    
-    TweenService:Create(restoreBtn, TweenInfo.new(0.1), {Size = UDim2.new(1, -10, 0, 38)}):Play()
-    task.wait(0.1)
-    TweenService:Create(restoreBtn, TweenInfo.new(0.1), {Size = UDim2.new(1, -10, 0, 35)}):Play()
+createSection(settingsPage, "💾 CONFIG MANAGER")
+createToggle(settingsPage, "SAVE CONFIG", false, function()
+    saveConfig()
+    print("[CONFIG] 💾 Configuration saved manually!")
 end)
 
-restoreBtn.MouseEnter:Connect(function()
-    TweenService:Create(restoreBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 70, 70)}):Play()
+createToggle(settingsPage, "LOAD CONFIG", false, function()
+    loadConfig()
+    print("[CONFIG] 📂 Configuration loaded manually!")
 end)
 
-restoreBtn.MouseLeave:Connect(function()
-    TweenService:Create(restoreBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
-end)
-
-yOffset = yOffset + 50
-
-end -- End World Visuals Scope
--- ============================================
-
--- Info Section
-createSection("ℹ️ INFORMATION")
+createSection(settingsPage, "ℹ️ INFORMATION")
 local infoFrame = Instance.new("Frame")
-infoFrame.Size = UDim2.new(1, -10, 0, 165)
-infoFrame.Position = UDim2.new(0, 5, 0, yOffset)
+infoFrame.Size = UDim2.new(1, -10, 0, 150)
 infoFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 infoFrame.BorderSizePixel = 0
-infoFrame.Parent = ScrollFrame
+infoFrame.Parent = settingsPage
 
 local infoFrameCorner = Instance.new("UICorner")
 infoFrameCorner.CornerRadius = UDim.new(0, 10)
 infoFrameCorner.Parent = infoFrame
 
-local infoStroke = Instance.new("UIStroke")
-infoStroke.Color = Color3.fromRGB(85, 170, 255)
-infoStroke.Thickness = 1.5
-infoStroke.Transparency = 0.7
-infoStroke.Parent = infoFrame
-
-local infoGradient = Instance.new("UIGradient")
-infoGradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 45)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(45, 35, 55))
-}
-infoGradient.Rotation = 90
-infoGradient.Parent = infoFrame
-
 local infoLabel = Instance.new("TextLabel")
 infoLabel.Size = UDim2.new(1, -20, 1, -10)
 infoLabel.Position = UDim2.new(0, 10, 0, 5)
 infoLabel.BackgroundTransparency = 1
-infoLabel.Text = "⌨️ INSERT - Toggle Menu\n🖱️ H - Quick Trigger Toggle\n\n⚡ OPTIMIZED for best performance!\n💾 Save/Load configs to share!\n🎯 Aimbot: 120 FPS smooth\n⚡ Trigger: ULTRA FAST (0.001s)\n🏃 Speed Hack: Up to 10x speed\n🔮 Velocity prediction adjustable\n🛡️ Team Check protects allies\n👁️ ESP: 60 FPS optimized\n🚀 Dual-loop system active\n📷 Camera FOV for custom zoom\n\n✨ 30-50% Better FPS!\n💎 Premium Edition v2.3"
-infoLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
-infoLabel.Font = Enum.Font.Gotham
-infoLabel.TextSize = 11
+infoLabel.Text = "⚡ MULTIHACK ULTRA v3.0\n\n📌 Press INSERT or RSHIFT to toggle Menu\n📌 Press Z to toggle Aimbot\n📌 All settings save automatically\n\nEnjoy the most premium Roblox script!"
+infoLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+infoLabel.Font = Enum.Font.GothamBold
+infoLabel.TextSize = 12
 infoLabel.TextWrapped = true
-infoLabel.TextYAlignment = Enum.TextYAlignment.Top
 infoLabel.Parent = infoFrame
 
--- Update canvas size (увеличенный для всех элементов)
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 150)
+-- ScrollFrame Canvas size setup
+-- Note: UIListLayout + AutomaticSize will handle most of it
+aimbotPage.CanvasSize = UDim2.new(0, 0, 0, 850)
+visualsPage.CanvasSize = UDim2.new(0, 0, 0, 650)
+miscPage.CanvasSize = UDim2.new(0, 0, 0, 550)
+settingsPage.CanvasSize = UDim2.new(0, 0, 0, 750)
 
 -- Animated gradient for title
 spawn(function()
@@ -3067,8 +2462,8 @@ CloseButton.MouseButton1Click:Connect(function()
     }):Play()
     wait(0.3)
     MainFrame.Visible = false
-    MainFrame.Size = UDim2.new(0, 450, 0, 550)
-    MainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+    MainFrame.Size = UDim2.new(0, 650, 0, 500)
+    MainFrame.Position = UDim2.new(0.5, -325, 0.5, -250)
 end)
 
 --[[
@@ -3179,7 +2574,7 @@ end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
-    if input.KeyCode == Enum.KeyCode.Insert then
+    if input.KeyCode == Enum.KeyCode.Insert or input.KeyCode == Enum.KeyCode.RightShift then
         if MainFrame.Visible then
             -- Close animation
             TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
@@ -3188,16 +2583,16 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             }):Play()
             wait(0.3)
             MainFrame.Visible = false
-            MainFrame.Size = UDim2.new(0, 450, 0, 550)
-            MainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
+            MainFrame.Size = UDim2.new(0, 650, 0, 500)
+            MainFrame.Position = UDim2.new(0.5, -325, 0.5, -250)
         else
             -- Open animation
             MainFrame.Visible = true
             MainFrame.Size = UDim2.new(0, 0, 0, 0)
             MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
             TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                Size = UDim2.new(0, 450, 0, 550),
-                Position = UDim2.new(0.5, -225, 0.5, -275)
+                Size = UDim2.new(0, 650, 0, 500),
+                Position = UDim2.new(0.5, -325, 0.5, -250)
             }):Play()
         end
     end
@@ -3314,7 +2709,7 @@ print("║                                              ║")
 print("║  ⚡ PERFORMANCE BOOST: +30-50% FPS!         ║")
 print("║                                              ║")
 print("║  ⌨️  Controls:                               ║")
-print("║  INSERT - Toggle GUI Menu                   ║")
+print("║  INSERT / RSHIFT - Toggle GUI Menu          ║")
 print("║  H - Quick Trigger Toggle                   ║")
 print("║                                              ║")
 print("║  🛡️  Team Check - Won't target teammates    ║")
@@ -3324,7 +2719,7 @@ print("║                                              ║")
 print("║  💾 Config File: MultihackConfig.json       ║")
 print("║  📁 Location: workspace folder              ║")
 print("╚══════════════════════════════════════════════╝")
-print("\n✅ All systems operational! Press INSERT to begin.")
+print("\n✅ All systems operational! Press INSERT or RSHIFT to begin.")
 print("💡 TIP: Use Save/Load Config to share settings!")
 print("⚡ OPTIMIZED: Dual-loop system for maximum performance!")
 print("🚀 ESP: 60 FPS | Aimbot: 120 FPS | Trigger: Unlimited!\n")
@@ -3827,5 +3222,5 @@ print("📜 Используется оригинальный ScrollFrame инт
 print("🌍 World Visuals: 8 themes (Normal + 7 custom) - отдельная секция!")
 print("🎨 CHAMS Settings: Enemy & Teammate colors - ДИНАМИЧЕСКАЯ СМЕНА!")
 print("👁️ Visual Effects: CHAMS, TRACERS, CROSSHAIR ready!")
-print("\n⌨️ Press INSERT to open menu")
+print("\n⌨️ Press INSERT or RSHIFT to open menu")
 print("\n💡 TIP: Включи CHAMS в меню, выбери цвета и увидишь врагов!")
